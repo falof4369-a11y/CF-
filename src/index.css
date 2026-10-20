@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-heading: 'Syne', sans-serif;
+    --font-street: 'Oswald', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-serif: 'Cinzel', serif;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: #000000;
+    color: #ffffff;
+  }
+
+  /* Custom minimal black & white scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #000000;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+  }
+}
+
+.font-heading {
+  font-family: 'Syne', sans-serif;
+}
+
+.font-street {
+  font-family: 'Oswald', sans-serif;
+}
+
+.font-serif-crest {
+  font-family: 'Cinzel', serif;
+}
+
+/* Streetwear aggressive italic titles */
+.street-title {
+  font-family: 'Oswald', sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+/* Subtle glow */
+.subtle-glow {
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.08);
+}
+
+.glow-active {
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
+}
+

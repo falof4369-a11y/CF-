@@ -1,0 +1,6 @@
+{
+  "name": "CF — Class Focus | Streetwear Premium",
+  "description": "Site oficial da CF (Class Focus) — Moda urbana exclusiva, t-shirts com arte, frases marcantes e personalização.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
