@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Product, CartItem } from './types';
 import { PRODUCTS } from './data/products';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { IntroCinematic } from './components/IntroCinematic';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
-import { FeaturedCollection } from './components/FeaturedCollection';
-import { GallerySection } from './components/GallerySection';
+import { ColecaoGaleria } from './components/ColecaoGaleria';
 import { PersonalizationSection } from './components/PersonalizationSection';
 import { AboutSection } from './components/AboutSection';
 import { Footer } from './components/Footer';
@@ -14,10 +14,12 @@ import { CartDrawer } from './components/CartDrawer';
 import { QuickSearchModal } from './components/QuickSearchModal';
 import { SizeGuideModal } from './components/SizeGuideModal';
 import { PersonalizationModal } from './components/PersonalizationModal';
-import { getGeneralWhatsAppUrl, WHATSAPP_CONFIG } from './config/whatsapp';
+import { getGeneralWhatsAppUrl } from './config/whatsapp';
 import { MessageCircle } from 'lucide-react';
 
-export default function App() {
+function MainApp() {
+  const { isWhite } = useTheme();
+
   // Intro animation state
   const [showIntro, setShowIntro] = useState<boolean>(true);
   const [forceReplay, setForceReplay] = useState<boolean>(false);
@@ -144,7 +146,13 @@ export default function App() {
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="min-h-screen bg-black text-white relative flex flex-col font-sans selection:bg-white selection:text-black">
+    <div
+      className={`min-h-screen relative flex flex-col font-sans transition-colors duration-300 ${
+        isWhite
+          ? 'bg-white text-zinc-950 selection:bg-black selection:text-white'
+          : 'bg-black text-white selection:bg-white selection:text-black'
+      }`}
+    >
       {/* 1. Cinematic Entrance Animation */}
       {showIntro && (
         <IntroCinematic
@@ -156,7 +164,7 @@ export default function App() {
         />
       )}
 
-      {/* 2. Sticky Header Navbar */}
+      {/* 2. Sticky Header Navbar with Black & White Theme Switcher */}
       <Navbar
         cartCount={totalCartCount}
         onOpenCart={() => setIsCartOpen(true)}
@@ -173,16 +181,13 @@ export default function App() {
           onSelectProduct={(product) => setSelectedProduct(product)}
         />
 
-        {/* Featured Collection Section */}
-        <FeaturedCollection
+        {/* Unified "Coleção e Galeria" Section with All 9 Real Photograph Models */}
+        <ColecaoGaleria
           products={PRODUCTS}
           onSelectProduct={(product) => setSelectedProduct(product)}
           onAddToCart={(product, size) => handleAddToCart(product, size, 1, 'black')}
           onOpenCustomize={() => scrollTo('personalizar')}
         />
-
-        {/* Gallery Section */}
-        <GallerySection />
 
         {/* Personalization Studio & Request Form */}
         <PersonalizationSection />
@@ -242,7 +247,11 @@ export default function App() {
           href={getGeneralWhatsAppUrl('Olá! Entrei no site da CF e gostaria de obter informações sobre as vossas t-shirts.')}
           target="_blank"
           rel="noopener noreferrer"
-          className="p-3.5 bg-zinc-950/90 hover:bg-white text-white hover:text-black border border-white/20 hover:border-white rounded-full shadow-[0_10px_30px_rgba(0,0,0,0.9)] transition-all duration-300 flex items-center gap-2 hover:scale-105 active:scale-95"
+          className={`p-3.5 rounded-full shadow-[0_10px_30px_rgba(0,0,0,0.3)] transition-all duration-300 flex items-center gap-2 hover:scale-105 active:scale-95 ${
+            isWhite
+              ? 'bg-white hover:bg-black text-black hover:text-white border border-zinc-300 hover:border-black'
+              : 'bg-zinc-950/90 hover:bg-white text-white hover:text-black border border-white/20 hover:border-white shadow-[0_10px_30px_rgba(0,0,0,0.9)]'
+          }`}
           aria-label="Contactar a CF no WhatsApp (+244 958 194 301)"
           title="Falar no WhatsApp Oficial da CF"
         >
@@ -255,8 +264,12 @@ export default function App() {
 
       {/* Toast notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-white text-black px-4 py-2.5 rounded shadow-2xl font-mono text-xs uppercase tracking-wider flex items-center gap-2 animate-bounce">
-          <span className="w-2 h-2 rounded-full bg-black" />
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded shadow-2xl font-mono text-xs uppercase tracking-wider flex items-center gap-2 animate-bounce ${
+            isWhite ? 'bg-black text-white' : 'bg-white text-black'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full ${isWhite ? 'bg-white' : 'bg-black'}`} />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -264,3 +277,10 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <ThemeProvider>
+      <MainApp />
+    </ThemeProvider>
+  );
+}

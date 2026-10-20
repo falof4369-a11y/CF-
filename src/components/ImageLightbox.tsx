@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { GalleryItem } from '../types';
-import { X, ChevronLeft, ChevronRight, MessageCircle, ZoomIn } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { X, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
 import { getProductOrderWhatsAppUrl } from '../config/whatsapp';
 
 interface ImageLightboxProps {
@@ -18,6 +19,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
 }) => {
   if (!item) return null;
 
+  const { isWhite } = useTheme();
   const currentIndex = items.findIndex((i) => i.id === item.id);
 
   // Keyboard navigation: Escape, ArrowLeft, ArrowRight
@@ -56,14 +58,14 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 select-none animate-fade-in"
+      className="fixed inset-0 z-50 bg-black/92 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 select-none animate-fade-in"
       onClick={onClose}
     >
       {/* Top action bar */}
       <div className="absolute top-4 inset-x-4 sm:inset-x-8 flex items-center justify-between z-20 pointer-events-none">
-        <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md border border-zinc-800 px-3 py-1.5 rounded-full pointer-events-auto">
+        <div className="flex items-center gap-2 bg-black/80 backdrop-blur-md border border-zinc-700 px-3.5 py-1.5 rounded-full pointer-events-auto">
           <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-          <span className="text-xs font-mono text-zinc-300 uppercase tracking-widest">
+          <span className="text-xs font-mono text-zinc-200 uppercase tracking-widest">
             {item.category} &bull; {currentIndex + 1} de {items.length}
           </span>
         </div>
@@ -71,7 +73,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="p-2.5 bg-black/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-full border border-zinc-700 transition-all pointer-events-auto shadow-xl"
+          className="p-2.5 bg-black/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-full border border-zinc-700 transition-all pointer-events-auto shadow-xl cursor-pointer"
           aria-label="Fechar visualização ampliada"
         >
           <X className="w-5 h-5" />
@@ -83,7 +85,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
         <button
           type="button"
           onClick={handlePrev}
-          className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 bg-black/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-full border border-zinc-800 hover:border-white transition-all z-20 shadow-2xl"
+          className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 bg-black/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-full border border-zinc-800 hover:border-white transition-all z-20 shadow-2xl cursor-pointer"
           aria-label="Imagem anterior"
         >
           <ChevronLeft className="w-6 h-6" />
@@ -94,7 +96,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
         <button
           type="button"
           onClick={handleNext}
-          className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 bg-black/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-full border border-zinc-800 hover:border-white transition-all z-20 shadow-2xl"
+          className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 bg-black/80 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-full border border-zinc-800 hover:border-white transition-all z-20 shadow-2xl cursor-pointer"
           aria-label="Próxima imagem"
         >
           <ChevronRight className="w-6 h-6" />
@@ -107,29 +109,49 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Full Image */}
-        <div className="relative w-full flex items-center justify-center overflow-hidden rounded-lg bg-zinc-950 border border-zinc-900 shadow-2xl max-h-[68vh]">
+        <div className="relative w-full flex items-center justify-center overflow-hidden rounded-lg bg-zinc-950 border border-zinc-800 shadow-2xl max-h-[68vh] p-4">
           <img
             src={item.imageUrl}
             alt={item.title}
-            className="w-full h-full max-h-[68vh] object-contain transition-transform duration-300 hover:scale-105"
+            className="w-full h-full max-h-[64vh] object-contain transition-transform duration-300 hover:scale-105"
             loading="lazy"
           />
         </div>
 
         {/* Captions and Direct WhatsApp order */}
-        <div className="w-full mt-4 p-4 bg-zinc-950/90 border border-zinc-900 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div
+          className={`w-full mt-4 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border shadow-xl ${
+            isWhite
+              ? 'bg-white text-black border-zinc-200'
+              : 'bg-zinc-950/90 text-white border-zinc-800'
+          }`}
+        >
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-street text-lg sm:text-xl font-bold uppercase tracking-wider text-white">
+              <h3
+                className={`font-street text-lg sm:text-xl font-bold uppercase tracking-wider ${
+                  isWhite ? 'text-black' : 'text-white'
+                }`}
+              >
                 {item.title}
               </h3>
               {item.badge && (
-                <span className="px-2 py-0.5 bg-white/10 text-[9px] font-mono tracking-widest uppercase text-white rounded border border-white/20">
+                <span
+                  className={`px-2 py-0.5 text-[9px] font-mono tracking-widest uppercase rounded border ${
+                    isWhite
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white/10 text-white border-white/20'
+                  }`}
+                >
                   {item.badge}
                 </span>
               )}
             </div>
-            <p className="text-xs text-zinc-400 font-mono mt-1 max-w-xl">
+            <p
+              className={`text-xs font-mono mt-1 max-w-xl ${
+                isWhite ? 'text-zinc-600' : 'text-zinc-400'
+              }`}
+            >
               {item.description}
             </p>
           </div>
@@ -138,9 +160,13 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
             <button
               type="button"
               onClick={handleOrderWhatsApp}
-              className="w-full sm:w-auto px-5 py-2.5 bg-white text-black font-street text-xs font-bold tracking-[0.2em] uppercase rounded hover:bg-zinc-200 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer shadow-lg active:scale-95"
+              className={`w-full sm:w-auto px-5 py-2.5 font-street text-xs font-bold tracking-[0.2em] uppercase rounded transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer shadow-lg active:scale-95 ${
+                isWhite
+                  ? 'bg-black text-white hover:bg-zinc-800'
+                  : 'bg-white text-black hover:bg-zinc-200'
+              }`}
             >
-              <MessageCircle className="w-4 h-4 fill-black" />
+              <MessageCircle className={`w-4 h-4 ${isWhite ? 'fill-white' : 'fill-black'}`} />
               <span>CONSULTAR NO WHATSAPP</span>
             </button>
           </div>

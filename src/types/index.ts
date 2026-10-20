@@ -1,19 +1,18 @@
 export interface Product {
   id: string;
   name: string;
-  category: 'logo' | 'african-art' | 'tribal' | 'typography' | 'gothic';
+  category: 'african-art' | 'tribal' | 'typography' | 'gothic' | 'custom' | 'logo';
   categoryLabel: string;
-  priceKz: number;
+  priceKz: number; // 6000 for CF t-shirt
+  clientShirtPriceKz?: number; // 4000 if client provides shirt
   description: string;
   story: string;
   details: string[];
   availableSizes: ('S' | 'M' | 'L' | 'XL' | 'XXL')[];
   stockStatus: Record<'S' | 'M' | 'L' | 'XL' | 'XXL', number>;
-  frontDesign: 'chest-logo' | 'center-logo' | 'blank' | 'phrase' | 'tribal';
-  backDesign: 'african-warrior' | 'tribal-lion' | 'angola-phrase' | 'snake' | 'minimal-crest' | 'dark-angel';
+  image: string; // Real photograph provided by the user
   badge?: string;
   isHero?: boolean;
-  realPhotoUrl?: string;
 }
 
 export interface GalleryItem {

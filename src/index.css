@@ -12,6 +12,12 @@
     font-family: var(--font-body);
     background-color: #000000;
     color: #ffffff;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  html.theme-white body {
+    background-color: #ffffff;
+    color: #09090b;
   }
 
   /* Custom minimal black & white scrollbar */
@@ -28,6 +34,17 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #52525b;
+  }
+
+  html.theme-white ::-webkit-scrollbar-track {
+    background: #f4f4f5;
+  }
+  html.theme-white ::-webkit-scrollbar-thumb {
+    background: #d4d4d8;
+    border-radius: 3px;
+  }
+  html.theme-white ::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
   }
 }
 
@@ -61,3 +78,10 @@
   box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
 }
 
+html.theme-white .subtle-glow {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+html.theme-white .glow-active {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+}

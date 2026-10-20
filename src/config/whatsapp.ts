@@ -73,6 +73,9 @@ export const getProductOrderWhatsAppUrl = (params: {
 export const getCustomizationWhatsAppUrl = (data: {
   name: string;
   phone: string;
+  tshirtSource?: 'cf-brand' | 'client-own';
+  tshirtSourceLabel?: string;
+  priceFormatted?: string;
   model: string;
   size: string;
   color: string;
@@ -83,10 +86,18 @@ export const getCustomizationWhatsAppUrl = (data: {
   hasImageAttachment?: boolean;
   imageName?: string;
 }): string => {
+  const sourceLabel =
+    data.tshirtSourceLabel ||
+    (data.tshirtSource === 'client-own'
+      ? 'T-shirt própria do cliente (4.000 Kz)'
+      : 'T-shirt da marca CF (6.000 Kz)');
+
   const text =
     `*PEDIDO DE T-SHIRT PERSONALIZADA — CF (CLASS FOCUS)*\n\n` +
     `*Cliente:* ${data.name}\n` +
     `*Telefone / WhatsApp:* ${data.phone}\n` +
+    `*Tipo de T-shirt:* ${sourceLabel}\n` +
+    (data.priceFormatted ? `*Preço Unitário:* ${data.priceFormatted}\n` : '') +
     `*Modelo:* ${data.model}\n` +
     `*Tamanho:* ${data.size}\n` +
     `*Cor da Peça:* ${data.color}\n` +
