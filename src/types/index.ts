@@ -5,6 +5,8 @@ export interface Product {
   categoryLabel: string;
   priceKz: number; // 6000 for CF t-shirt
   clientShirtPriceKz?: number; // 4000 if client provides shirt
+  color?: string;
+  defaultColor?: 'black' | 'charcoal' | 'white';
   description: string;
   story: string;
   details: string[];

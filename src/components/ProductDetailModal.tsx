@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
 import { formatPrice } from '../data/products';
 import { getProductOrderWhatsAppUrl } from '../config/whatsapp';
@@ -22,9 +22,19 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   const { isWhite } = useTheme();
   const [selectedSize, setSelectedSize] = useState<'S' | 'M' | 'L' | 'XL' | 'XXL'>('L');
-  const [selectedColor, setSelectedColor] = useState<'black' | 'charcoal' | 'white'>('black');
+  const [selectedColor, setSelectedColor] = useState<'black' | 'charcoal' | 'white'>(
+    product.defaultColor || 'black'
+  );
   const [quantity, setQuantity] = useState(1);
   const [addedSuccess, setAddedSuccess] = useState(false);
+
+  useEffect(() => {
+    if (product) {
+      setSelectedColor(product.defaultColor || 'black');
+      setSelectedSize('L');
+      setQuantity(1);
+    }
+  }, [product]);
 
   const availableStock = product.stockStatus[selectedSize] ?? 5;
 
