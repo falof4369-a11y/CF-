@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TShirtMockup } from './TShirtMockup';
 import { BRAND_CONFIG, SIZES } from '../data/products';
+import { getCustomizationWhatsAppUrl, WHATSAPP_CONFIG } from '../config/whatsapp';
 import { Sparkles, MessageCircle, Upload, CheckCircle2, Copy, AlertCircle, RefreshCw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -69,7 +70,7 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
 
     const cleanPhone = phone.replace(/[^0-9+]/g, '');
     if (!cleanPhone || cleanPhone.length < 8) {
-      newErrors.phone = 'Por favor insere um contacto telefónico/WhatsApp válido (ex: 923 000 000).';
+      newErrors.phone = 'Por favor insere um contacto telefónico/WhatsApp válido (ex: 958 194 301).';
     }
 
     if (!designDescription.trim() && !customPhrase.trim()) {
@@ -98,25 +99,10 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
       imageName: referenceFile?.name,
     };
 
-    // Format WhatsApp message
-    const waText = encodeURIComponent(
-      `*PEDIDO DE T-SHIRT PERSONALIZADA — CF (CLASS FOCUS)*\n\n` +
-      `*Cliente:* ${data.name}\n` +
-      `*Telefone / WhatsApp:* ${data.phone}\n` +
-      `*Modelo:* ${data.model}\n` +
-      `*Tamanho:* ${data.size}\n` +
-      `*Cor da Peça:* ${data.color}\n` +
-      `*Posição da Estampa:* ${data.placement}\n` +
-      `*Estilo da Fonte:* ${data.fontStyle}\n` +
-      `*Frase / Texto:* "${data.phrase}"\n` +
-      `*Descrição do Design:* ${data.description}\n` +
-      (data.hasImageAttachment ? `*Imagem de Referência:* Anexada pelo cliente (${data.imageName})\n` : '') +
-      `\n_Enviado através do site oficial da CF — Veste a Tua Identidade._`
-    );
+    // Use centralized WhatsApp helper
+    const waUrl = getCustomizationWhatsAppUrl(data);
 
-    const waUrl = `https://wa.me/${BRAND_CONFIG.phoneWhatsApp.replace(/[^0-9]/g, '')}?text=${waText}`;
-
-    setSubmittedData({ ...data, waUrl, rawMessage: decodeURIComponent(waText) });
+    setSubmittedData({ ...data, waUrl });
 
     try {
       confetti({

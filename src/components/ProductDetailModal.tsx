@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
-import { formatPrice, BRAND_CONFIG } from '../data/products';
+import { formatPrice } from '../data/products';
+import { getProductOrderWhatsAppUrl } from '../config/whatsapp';
 import { TShirtMockup } from './TShirtMockup';
-import { X, ShoppingBag, MessageCircle, Ruler, Check, Shield, RotateCcw, Truck } from 'lucide-react';
+import { X, ShoppingBag, MessageCircle, Ruler, Check, Shield, RotateCcw, Truck, Camera } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -22,8 +23,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [selectedSize, setSelectedSize] = useState<'S' | 'M' | 'L' | 'XL' | 'XXL'>('L');
   const [selectedColor, setSelectedColor] = useState<'black' | 'charcoal' | 'white'>('black');
   const [quantity, setQuantity] = useState(1);
-  const [view, setView] = useState<'front' | 'back'>(
-    product.isHero || product.backDesign !== 'minimal-crest' ? 'back' : 'front'
+  const [view, setView] = useState<'front' | 'back' | 'real'>(
+    product.realPhotoUrl ? 'real' : (product.isHero || product.backDesign !== 'minimal-crest' ? 'back' : 'front')
   );
   const [addedSuccess, setAddedSuccess] = useState(false);
 
@@ -39,17 +40,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   const handleDirectWhatsApp = () => {
-    const text = encodeURIComponent(
-      `*PEDIDO DIRETO — CF (CLASS FOCUS)*\n\n` +
-      `*Peça:* ${product.name}\n` +
-      `*Preço Unitário:* ${formatPrice(product.priceKz)}\n` +
-      `*Tamanho:* ${selectedSize}\n` +
-      `*Cor:* ${selectedColor === 'black' ? 'Preto' : selectedColor === 'charcoal' ? 'Grafite' : 'Branco'}\n` +
-      `*Quantidade:* ${quantity}\n` +
-      `*Total:* ${formatPrice(product.priceKz * quantity)}\n\n` +
-      `Gostaria de confirmar a disponibilidade e os dados de entrega em Luanda/Província.`
-    );
-    const url = `https://wa.me/${BRAND_CONFIG.phoneWhatsApp.replace(/[^0-9]/g, '')}?text=${text}`;
+    const url = getProductOrderWhatsAppUrl({
+      productName: product.name,
+      size: selectedSize,
+      quantity,
+      priceFormatted: formatPrice(product.priceKz * quantity),
+      color: selectedColor,
+    });
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -74,9 +71,34 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
           {/* Left Column: Visual Mockup Showcase with Interactive Toggle */}
-          <div className="md:col-span-6 bg-black border border-zinc-900 rounded-lg p-4 flex flex-col items-center justify-center relative">
+          <div className="md:col-span-6 bg-black border border-zinc-900 rounded-lg p-4 flex flex-col items-center justify-center relative min-h-[380px]">
             {/* View Selector Controls */}
-            <div className="flex items-center gap-2 mb-2 self-end z-10">
+            <div className="flex flex-wrap items-center gap-1.5 mb-2 self-end z-10">
+              {product.realPhotoUrl && (
+                <button
+                  type="button"
+                  onClick={() => setView('real')}
+                  className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider rounded border transition-all flex items-center gap-1 ${
+                    view === 'real'
+                      ? 'bg-white text-black border-white font-bold'
+                      : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                  }`}
+                >
+                  <Camera className="w-3 h-3" />
+                  <span>Foto Real</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setView('back')}
+                className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider rounded border transition-all ${
+                  view === 'back'
+                    ? 'bg-white text-black border-white font-bold'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                Costas
+              </button>
               <button
                 type="button"
                 onClick={() => setView('front')}
@@ -88,34 +110,37 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               >
                 Frente
               </button>
-              <button
-                type="button"
-                onClick={() => setView('back')}
-                className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider rounded border transition-all ${
-                  view === 'back'
-                    ? 'bg-white text-black border-white font-bold'
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
-                }`}
-              >
-                Costas (Estampa)
-              </button>
             </div>
 
-            <div className="w-full max-w-[360px] py-2">
-              <TShirtMockup
-                frontDesign={product.frontDesign}
-                backDesign={product.backDesign}
-                color={selectedColor}
-                view={view}
-                interactive={false}
-                sizeTag={selectedSize}
-              />
+            <div className="w-full max-w-[360px] py-2 flex items-center justify-center">
+              {view === 'real' && product.realPhotoUrl ? (
+                <div className="w-full aspect-square flex items-center justify-center rounded overflow-hidden p-1">
+                  <img
+                    src={product.realPhotoUrl}
+                    alt={product.name}
+                    className="w-full h-full object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-300"
+                  />
+                </div>
+              ) : (
+                <TShirtMockup
+                  frontDesign={product.frontDesign}
+                  backDesign={product.backDesign}
+                  color={selectedColor}
+                  view={view === 'front' ? 'front' : 'back'}
+                  interactive={false}
+                  sizeTag={selectedSize}
+                />
+              )}
             </div>
 
             {/* Micro badge */}
             <div className="mt-2 text-center">
               <span className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase">
-                {view === 'back' ? 'ESTAMPA PRINCIPAL DE AUTOR' : 'LOGÓTIPO NO PEITO'} &bull; 100% ALGODÃO HEAVYWEIGHT
+                {view === 'real'
+                  ? 'FOTOGRAFIA OFICIAL DO LOOKBOOK'
+                  : view === 'back'
+                  ? 'ESTAMPA PRINCIPAL DE AUTOR'
+                  : 'LOGÓTIPO NO PEITO'} &bull; 100% ALGODÃO HEAVYWEIGHT
               </span>
             </div>
           </div>

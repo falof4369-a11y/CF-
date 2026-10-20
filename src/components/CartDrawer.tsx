@@ -1,6 +1,7 @@
 import React from 'react';
 import { CartItem } from '../types';
-import { formatPrice, BRAND_CONFIG } from '../data/products';
+import { formatPrice } from '../data/products';
+import { getCartCheckoutWhatsAppUrl } from '../config/whatsapp';
 import { TShirtMockup } from './TShirtMockup';
 import { X, Trash2, Plus, Minus, MessageCircle, ArrowRight, ShoppingBag } from 'lucide-react';
 
@@ -35,25 +36,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const handleCheckoutWhatsApp = () => {
     if (items.length === 0) return;
 
-    let itemsList = '';
-    items.forEach((item, index) => {
-      itemsList += `${index + 1}. *${item.product.name}*\n   - Tamanho: *${item.size}*\n   - Cor: *${item.color === 'black' ? 'Preto' : item.color === 'charcoal' ? 'Grafite' : 'Branco'}*\n   - Quantidade: *${item.quantity}*\n   - Valor: *${formatPrice(item.product.priceKz * item.quantity)}*\n\n`;
+    const checkoutItems = items.map((item) => ({
+      name: item.product.name,
+      size: item.size,
+      color: item.color,
+      quantity: item.quantity,
+      totalFormatted: formatPrice(item.product.priceKz * item.quantity),
+    }));
+
+    const waUrl = getCartCheckoutWhatsAppUrl({
+      items: checkoutItems,
+      subtotalFormatted: formatPrice(subtotal),
     });
 
-    const message = encodeURIComponent(
-      `*PEDIDO OFICIAL — CF (CLASS FOCUS)*\n\n` +
-      `Olá, equipa CF! Gostaria de finalizar a encomenda das seguintes peças:\n\n` +
-      itemsList +
-      `*TOTAL:* *${formatPrice(subtotal)}*\n\n` +
-      `*Por favor, confirmem os dados de entrega:*\n` +
-      `- Meu Nome Completo:\n` +
-      `- Província / Município:\n` +
-      `- Bairro / Ponto de Referência:\n` +
-      `- Telefone Alternativo:\n\n` +
-      `_Enviado através do site oficial da CF — Veste a Tua Identidade._`
-    );
-
-    const waUrl = `https://wa.me/${BRAND_CONFIG.phoneWhatsApp.replace(/[^0-9]/g, '')}?text=${message}`;
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 

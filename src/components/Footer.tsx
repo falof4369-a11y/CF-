@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CFLogo } from './CFLogo';
 import { BRAND_CONFIG } from '../data/products';
+import { getGeneralWhatsAppUrl } from '../config/whatsapp';
 import { Instagram, Facebook, MessageCircle, Mail, MapPin, Play, Shield, Truck, RotateCcw, HelpCircle } from 'lucide-react';
 
 interface FooterProps {
@@ -55,11 +56,11 @@ export const Footer: React.FC<FooterProps> = ({
                 <Instagram className="w-4 h-4" />
               </a>
               <a
-                href={`https://wa.me/${BRAND_CONFIG.phoneWhatsApp.replace(/[^0-9]/g, '')}`}
+                href={BRAND_CONFIG.whatsAppDirectLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full border border-zinc-800 hover:border-white flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
-                title="WhatsApp Oficial CF"
+                title="WhatsApp Oficial CF (+244 958 194 301)"
               >
                 <MessageCircle className="w-4 h-4" />
               </a>
@@ -102,6 +103,14 @@ export const Footer: React.FC<FooterProps> = ({
                   className="hover:text-white transition-colors"
                 >
                   Coleção em Destaque
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => scrollTo('galeria')}
+                  className="hover:text-white transition-colors"
+                >
+                  Galeria de Peças
                 </button>
               </li>
               <li>
@@ -185,10 +194,11 @@ export const Footer: React.FC<FooterProps> = ({
               <p className="flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-white shrink-0" />
                 <a
-                  href={`https://wa.me/${BRAND_CONFIG.phoneWhatsApp.replace(/[^0-9]/g, '')}`}
+                  href={getGeneralWhatsAppUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white underline"
+                  title="Contactar CF via WhatsApp Oficial (+244 958 194 301)"
                 >
                   {BRAND_CONFIG.phoneWhatsAppDisplay}
                 </a>

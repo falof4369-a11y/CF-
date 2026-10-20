@@ -5,6 +5,7 @@ import { IntroCinematic } from './components/IntroCinematic';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { FeaturedCollection } from './components/FeaturedCollection';
+import { GallerySection } from './components/GallerySection';
 import { PersonalizationSection } from './components/PersonalizationSection';
 import { AboutSection } from './components/AboutSection';
 import { Footer } from './components/Footer';
@@ -13,6 +14,8 @@ import { CartDrawer } from './components/CartDrawer';
 import { QuickSearchModal } from './components/QuickSearchModal';
 import { SizeGuideModal } from './components/SizeGuideModal';
 import { PersonalizationModal } from './components/PersonalizationModal';
+import { getGeneralWhatsAppUrl, WHATSAPP_CONFIG } from './config/whatsapp';
+import { MessageCircle } from 'lucide-react';
 
 export default function App() {
   // Intro animation state
@@ -178,6 +181,9 @@ export default function App() {
           onOpenCustomize={() => scrollTo('personalizar')}
         />
 
+        {/* Gallery Section */}
+        <GallerySection />
+
         {/* Personalization Studio & Request Form */}
         <PersonalizationSection />
 
@@ -230,6 +236,23 @@ export default function App() {
         onClose={() => setIsCustomizeModalOpen(false)}
       />
 
+      {/* Floating Official WhatsApp Button */}
+      <aside aria-label="Contacto WhatsApp" className="fixed bottom-6 left-6 z-40 flex items-center group">
+        <a
+          href={getGeneralWhatsAppUrl('Olá! Entrei no site da CF e gostaria de obter informações sobre as vossas t-shirts.')}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-3.5 bg-zinc-950/90 hover:bg-white text-white hover:text-black border border-white/20 hover:border-white rounded-full shadow-[0_10px_30px_rgba(0,0,0,0.9)] transition-all duration-300 flex items-center gap-2 hover:scale-105 active:scale-95"
+          aria-label="Contactar a CF no WhatsApp (+244 958 194 301)"
+          title="Falar no WhatsApp Oficial da CF"
+        >
+          <MessageCircle className="w-5 h-5 fill-current" />
+          <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out font-street text-xs font-bold tracking-wider uppercase pr-1">
+            WhatsApp CF &bull; 958 194 301
+          </span>
+        </a>
+      </aside>
+
       {/* Toast notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-white text-black px-4 py-2.5 rounded shadow-2xl font-mono text-xs uppercase tracking-wider flex items-center gap-2 animate-bounce">
@@ -240,3 +263,4 @@ export default function App() {
     </div>
   );
 }
+

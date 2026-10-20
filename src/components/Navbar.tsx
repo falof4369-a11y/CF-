@@ -15,7 +15,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSearch,
   onOpenCustomizeModal,
 }) => {
-  const [activeSection, setActiveSection] = useState<'inicio' | 'colecao' | 'personalizar' | 'sobre-nos'>('inicio');
+  const [activeSection, setActiveSection] = useState<'inicio' | 'colecao' | 'galeria' | 'personalizar' | 'sobre-nos'>('inicio');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -24,7 +24,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       setScrolled(window.scrollY > 30);
 
       // Simple spy
-      const sections = ['inicio', 'colecao', 'personalizar', 'sobre-nos'] as const;
+      const sections = ['inicio', 'colecao', 'galeria', 'personalizar', 'sobre-nos'] as const;
       const scrollPos = window.scrollY + 180;
 
       for (const section of sections) {
@@ -44,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollTo = (id: 'inicio' | 'colecao' | 'personalizar' | 'sobre-nos') => {
+  const scrollTo = (id: 'inicio' | 'colecao' | 'galeria' | 'personalizar' | 'sobre-nos') => {
     setActiveSection(id);
     setMobileMenuOpen(false);
     const element = document.getElementById(id);
@@ -86,11 +86,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           </a>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-8">
+          <nav className="hidden md:flex items-center space-x-7 lg:space-x-8">
             <button
               onClick={() => scrollTo('inicio')}
-              className={`text-xs uppercase tracking-[0.25em] font-medium transition-all relative py-1 focus:outline-none ${
-                activeSection === 'inicio' ? 'text-white' : 'text-zinc-400 hover:text-white'
+              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+                activeSection === 'inicio' ? 'text-white font-bold' : 'text-zinc-400 hover:text-white'
               }`}
             >
               INÍCIO
@@ -101,8 +101,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => scrollTo('colecao')}
-              className={`text-xs uppercase tracking-[0.25em] font-medium transition-all relative py-1 focus:outline-none ${
-                activeSection === 'colecao' ? 'text-white' : 'text-zinc-400 hover:text-white'
+              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+                activeSection === 'colecao' ? 'text-white font-bold' : 'text-zinc-400 hover:text-white'
               }`}
             >
               COLEÇÃO
@@ -112,9 +112,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
+              onClick={() => scrollTo('galeria')}
+              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+                activeSection === 'galeria' ? 'text-white font-bold' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              GALERIA
+              {activeSection === 'galeria' && (
+                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white transition-all" />
+              )}
+            </button>
+
+            <button
               onClick={() => scrollTo('personalizar')}
-              className={`text-xs uppercase tracking-[0.25em] font-medium transition-all relative py-1 focus:outline-none ${
-                activeSection === 'personalizar' ? 'text-white' : 'text-zinc-400 hover:text-white'
+              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+                activeSection === 'personalizar' ? 'text-white font-bold' : 'text-zinc-400 hover:text-white'
               }`}
             >
               PERSONALIZAR
@@ -125,8 +137,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => scrollTo('sobre-nos')}
-              className={`text-xs uppercase tracking-[0.25em] font-medium transition-all relative py-1 focus:outline-none ${
-                activeSection === 'sobre-nos' ? 'text-white' : 'text-zinc-400 hover:text-white'
+              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+                activeSection === 'sobre-nos' ? 'text-white font-bold' : 'text-zinc-400 hover:text-white'
               }`}
             >
               SOBRE NÓS
@@ -203,6 +215,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="text-left font-street text-2xl tracking-[0.2em] font-bold text-white hover:text-zinc-300 py-2 border-b border-zinc-900"
             >
               COLEÇÃO
+            </button>
+            <button
+              onClick={() => scrollTo('galeria')}
+              className="text-left font-street text-2xl tracking-[0.2em] font-bold text-white hover:text-zinc-300 py-2 border-b border-zinc-900"
+            >
+              GALERIA
             </button>
             <button
               onClick={() => scrollTo('personalizar')}

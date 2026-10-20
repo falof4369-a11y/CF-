@@ -1,4 +1,7 @@
 import { Product } from '../types';
+import { WHATSAPP_CONFIG } from '../config/whatsapp';
+
+export { WHATSAPP_CONFIG };
 
 export const PRODUCTS: Product[] = [
   {
@@ -28,7 +31,7 @@ export const PRODUCTS: Product[] = [
     category: 'african-art',
     categoryLabel: 'Arte Africana',
     priceKz: 22000,
-    description: 'A nossa peça de assinatura. Apresenta uma composição monumental nas costas: o majestoso leão tribal emparelhado com a soberana guerreira africana com coroa, colares cerimoniais e lança.',
+    description: 'A nossa peça de assinatura. Apresenta uma composição monumental nas costas: a soberana guerreira africana empunhando a lança com coroa CF, pinturas rituais e adornos sagrados.',
     story: 'Uma homenagem à força ancestral das mulheres de Angola e do continente berço. A união entre a bravura do leão e a dignidade inquebrantável da rainha guerreira.',
     details: [
       'Algodão orgânico 240g/m² pesado de toque aveludado',
@@ -43,6 +46,7 @@ export const PRODUCTS: Product[] = [
     backDesign: 'african-warrior',
     badge: 'DROP 01 &bull; BEST-SELLER',
     isHero: true,
+    realPhotoUrl: '/assets/aistudio/Camisolas_Negras_com_Guerreira_Tribal_9977a92d.png',
   },
   {
     id: 'leao-tribal',
@@ -63,6 +67,7 @@ export const PRODUCTS: Product[] = [
     frontDesign: 'chest-logo',
     backDesign: 'tribal-lion',
     badge: 'POPULAR',
+    realPhotoUrl: '/assets/aistudio/T-shirts_pretas_com_le_o_tribal_e_monograma_d7eb0b20.png',
   },
   {
     id: 'frase-angola',
@@ -83,6 +88,7 @@ export const PRODUCTS: Product[] = [
     frontDesign: 'chest-logo',
     backDesign: 'angola-phrase',
     badge: 'MANIFESTO',
+    realPhotoUrl: '/assets/aistudio/Camisolas_Pretas_Angola_em_Destaque_6774872b.png',
   },
   {
     id: 'serpente-gotica',
@@ -90,11 +96,11 @@ export const PRODUCTS: Product[] = [
     category: 'gothic',
     categoryLabel: 'Estilo Gótico',
     priceKz: 20000,
-    description: 'A serpente espinhal em espiral gótica simbolizando renovação, astúcia e evolução pessoal contínua.',
+    description: 'A cobra naja feroz em silhueta de ataque, combinando atitude predadora, precisão e o prestígio urbano da CF.',
     story: 'Inspirada na estética darkwear de capitais internacionais aliada ao espírito underground de Luanda. O rastejar silencioso que se transforma em ascensão.',
     details: [
-      'Impressão serigráfica com tinta à base de água de toque zero',
-      'Escamas e vértebras com textura visual de alta precisão',
+      'Impressão serigráfica com tinta de alta densidade',
+      'Linhas arrojadas com acabamento de alto contraste',
       'Corte clássico oversized com mangas alargadas',
       'Bainhas reforçadas',
     ],
@@ -103,6 +109,7 @@ export const PRODUCTS: Product[] = [
     frontDesign: 'chest-logo',
     backDesign: 'snake',
     badge: 'DARKWEAR',
+    realPhotoUrl: '/assets/aistudio/Mockup_de_T-shirts_pretos_com_serpente_e_bras_o_CF_f4c663a0.png',
   },
   {
     id: 'class-focus-crest-oversized',
@@ -142,8 +149,9 @@ export const BRAND_CONFIG = {
   fullName: 'CLASS FOCUS',
   tagline: 'VESTE A TUA IDENTIDADE.',
   subtagline: 'Não é apenas uma t-shirt. É uma forma de expressão.',
-  phoneWhatsApp: '+244923000000', // Número de WhatsApp oficial da CF configurável
-  phoneWhatsAppDisplay: '+244 923 000 000',
+  phoneWhatsApp: WHATSAPP_CONFIG.fullInternationalNumber, // 244958194301
+  phoneWhatsAppDisplay: WHATSAPP_CONFIG.displayNumber,   // +244 958 194 301
+  whatsAppDirectLink: WHATSAPP_CONFIG.directLink,        // https://wa.me/244958194301
   instagram: '@classfocus.ao',
   instagramUrl: 'https://instagram.com/classfocus.ao',
   facebook: 'Class Focus Angola',
@@ -159,3 +167,4 @@ export const formatPrice = (price: number): string => {
     maximumFractionDigits: 0,
   })}`;
 };
+

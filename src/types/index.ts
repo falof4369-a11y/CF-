@@ -13,6 +13,17 @@ export interface Product {
   backDesign: 'african-warrior' | 'tribal-lion' | 'angola-phrase' | 'snake' | 'minimal-crest' | 'dark-angel';
   badge?: string;
   isHero?: boolean;
+  realPhotoUrl?: string;
+}
+
+export interface GalleryItem {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  imageUrl: string;
+  badge?: string;
+  relatedProductId?: string;
 }
 
 export interface CartItem {
