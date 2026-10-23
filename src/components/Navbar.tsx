@@ -8,6 +8,7 @@ interface NavbarProps {
   onOpenCart: () => void;
   onOpenSearch: () => void;
   onOpenCustomizeModal: () => void;
+  onOpenAdminAuth: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -15,18 +16,46 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCart,
   onOpenSearch,
   onOpenCustomizeModal,
+  onOpenAdminAuth,
 }) => {
   const { theme, isWhite, toggleTheme } = useTheme();
-  const [activeSection, setActiveSection] = useState<'inicio' | 'colecao' | 'personalizar' | 'sobre-nos'>('inicio');
+  const [activeSection, setActiveSection] = useState<
+    'inicio' | 'colecao' | 'personalizar' | 'avaliacoes' | 'comunidade' | 'sobre-nos'
+  >('inicio');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  // 3-Click detection on CF Logo for discreet Admin Access
+  const [logoClicks, setLogoClicks] = useState(0);
+  const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    scrollTo('inicio');
+
+    const nextClicks = logoClicks + 1;
+    setLogoClicks(nextClicks);
+
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+
+    if (nextClicks >= 3) {
+      setLogoClicks(0);
+      onOpenAdminAuth();
+    } else {
+      clickTimeoutRef.current = setTimeout(() => {
+        setLogoClicks(0);
+      }, 1500);
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 30);
 
       // Section spy
-      const sections = ['inicio', 'colecao', 'personalizar', 'sobre-nos'] as const;
+      const sections = ['inicio', 'colecao', 'personalizar', 'avaliacoes', 'comunidade', 'sobre-nos'] as const;
       const scrollPos = window.scrollY + 180;
 
       for (const section of sections) {
@@ -46,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollTo = (id: 'inicio' | 'colecao' | 'personalizar' | 'sobre-nos') => {
+  const scrollTo = (id: 'inicio' | 'colecao' | 'personalizar' | 'avaliacoes' | 'comunidade' | 'sobre-nos') => {
     setActiveSection(id);
     setMobileMenuOpen(false);
     const element = document.getElementById(id);
@@ -69,14 +98,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          {/* Logo Brand on Left */}
+          {/* Logo Brand on Left with 3-Click Admin trigger */}
           <a
             href="#inicio"
-            onClick={(e) => {
-              e.preventDefault();
-              scrollTo('inicio');
-            }}
-            className="flex items-center gap-3 group focus:outline-none"
+            onClick={handleLogoClick}
+            className="flex items-center gap-3 group focus:outline-none cursor-pointer"
+            title="CF (Class Focus) — Início"
           >
             <div className="transform transition-transform group-hover:scale-105 duration-300">
               <CFLogo size="md" glow={true} />
@@ -100,10 +127,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           </a>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-7 lg:space-x-8">
+          <nav className="hidden md:flex items-center space-x-5 lg:space-x-7">
             <button
               onClick={() => scrollTo('inicio')}
-              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+              className={`text-xs uppercase tracking-[0.2em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
                 activeSection === 'inicio'
                   ? isWhite
                     ? 'text-black font-bold'
@@ -125,7 +152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => scrollTo('colecao')}
-              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+              className={`text-xs uppercase tracking-[0.2em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
                 activeSection === 'colecao'
                   ? isWhite
                     ? 'text-black font-bold'
@@ -135,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-zinc-400 hover:text-white'
               }`}
             >
-              COLEÇÃO E GALERIA
+              COLEÇÃO
               {activeSection === 'colecao' && (
                 <span
                   className={`absolute bottom-0 left-0 right-0 h-[2px] transition-all ${
@@ -147,7 +174,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => scrollTo('personalizar')}
-              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+              className={`text-xs uppercase tracking-[0.2em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
                 activeSection === 'personalizar'
                   ? isWhite
                     ? 'text-black font-bold'
@@ -168,8 +195,52 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
+              onClick={() => scrollTo('avaliacoes')}
+              className={`text-xs uppercase tracking-[0.2em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+                activeSection === 'avaliacoes'
+                  ? isWhite
+                    ? 'text-black font-bold'
+                    : 'text-white font-bold'
+                  : isWhite
+                  ? 'text-zinc-600 hover:text-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              AVALIAÇÕES
+              {activeSection === 'avaliacoes' && (
+                <span
+                  className={`absolute bottom-0 left-0 right-0 h-[2px] transition-all ${
+                    isWhite ? 'bg-black' : 'bg-white'
+                  }`}
+                />
+              )}
+            </button>
+
+            <button
+              onClick={() => scrollTo('comunidade')}
+              className={`text-xs uppercase tracking-[0.2em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+                activeSection === 'comunidade'
+                  ? isWhite
+                    ? 'text-black font-bold'
+                    : 'text-white font-bold'
+                  : isWhite
+                  ? 'text-zinc-600 hover:text-black'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              COMUNIDADE
+              {activeSection === 'comunidade' && (
+                <span
+                  className={`absolute bottom-0 left-0 right-0 h-[2px] transition-all ${
+                    isWhite ? 'bg-black' : 'bg-white'
+                  }`}
+                />
+              )}
+            </button>
+
+            <button
               onClick={() => scrollTo('sobre-nos')}
-              className={`text-xs uppercase tracking-[0.22em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
+              className={`text-xs uppercase tracking-[0.2em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
                 activeSection === 'sobre-nos'
                   ? isWhite
                     ? 'text-black font-bold'
@@ -307,7 +378,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex flex-col space-y-6">
             <button
               onClick={() => scrollTo('inicio')}
-              className={`text-left font-street text-2xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
+              className={`text-left font-street text-xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
                 isWhite
                   ? 'text-black border-zinc-200 hover:text-zinc-600'
                   : 'text-white border-zinc-900 hover:text-zinc-300'
@@ -317,7 +388,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => scrollTo('colecao')}
-              className={`text-left font-street text-2xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
+              className={`text-left font-street text-xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
                 isWhite
                   ? 'text-black border-zinc-200 hover:text-zinc-600'
                   : 'text-white border-zinc-900 hover:text-zinc-300'
@@ -327,7 +398,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => scrollTo('personalizar')}
-              className={`text-left font-street text-2xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
+              className={`text-left font-street text-xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
                 isWhite
                   ? 'text-black border-zinc-200 hover:text-zinc-600'
                   : 'text-white border-zinc-900 hover:text-zinc-300'
@@ -336,8 +407,28 @@ export const Navbar: React.FC<NavbarProps> = ({
               PERSONALIZAR
             </button>
             <button
+              onClick={() => scrollTo('avaliacoes')}
+              className={`text-left font-street text-xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
+                isWhite
+                  ? 'text-black border-zinc-200 hover:text-zinc-600'
+                  : 'text-white border-zinc-900 hover:text-zinc-300'
+              }`}
+            >
+              AVALIAÇÕES & CRÍTICAS
+            </button>
+            <button
+              onClick={() => scrollTo('comunidade')}
+              className={`text-left font-street text-xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
+                isWhite
+                  ? 'text-black border-zinc-200 hover:text-zinc-600'
+                  : 'text-white border-zinc-900 hover:text-zinc-300'
+              }`}
+            >
+              COMUNIDADE CF
+            </button>
+            <button
               onClick={() => scrollTo('sobre-nos')}
-              className={`text-left font-street text-2xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
+              className={`text-left font-street text-xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
                 isWhite
                   ? 'text-black border-zinc-200 hover:text-zinc-600'
                   : 'text-white border-zinc-900 hover:text-zinc-300'
@@ -386,7 +477,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 isWhite ? 'bg-black text-white hover:bg-zinc-800' : 'bg-white text-black hover:bg-zinc-200'
               }`}
             >
-              CRIAR A MINHA T-SHIRT
+              ENCOMENDA PERSONALIZADA
             </button>
             <p
               className={`text-[11px] font-mono tracking-widest text-center uppercase ${

@@ -40,7 +40,7 @@ export const PersonalizationModal: React.FC<PersonalizationModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        <PersonalizationSection />
+        <PersonalizationSection isModal={true} onOrderCompleted={onClose} />
       </div>
     </div>
   );

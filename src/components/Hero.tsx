@@ -125,7 +125,7 @@ export const Hero: React.FC<HeroProps> = ({
                 }`}
               >
                 <Sparkles className="w-4 h-4" />
-                <span>CRIAR A MINHA T-SHIRT</span>
+                <span>ENCOMENDAR PERSONALIZADA</span>
               </button>
             </div>
 

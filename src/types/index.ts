@@ -15,6 +15,10 @@ export interface Product {
   image: string; // Real photograph provided by the user
   badge?: string;
   isHero?: boolean;
+  status?: 'published' | 'draft' | 'archived';
+  viewAngle?: 'front' | 'back' | 'full';
+  isCustomUpload?: boolean;
+  createdAt?: string;
 }
 
 export interface GalleryItem {
@@ -48,3 +52,48 @@ export interface CustomizationData {
   referenceImageName?: string;
   referenceImageData?: string;
 }
+
+export interface Review {
+  id: string;
+  authorName: string;
+  rating: number; // 1 to 5
+  category: 'Elogio' | 'Sugestão' | 'Crítica Construtiva' | 'Qualidade' | 'Geral';
+  comment: string;
+  date: string; // ISO or formatted date
+  status: 'pending' | 'approved' | 'rejected';
+  verifiedPurchase?: boolean;
+}
+
+export interface CommunityPhoto {
+  id: string;
+  authorName: string;
+  authorHandle?: string;
+  tshirtModel: string;
+  caption?: string;
+  imageUrl: string;
+  date: string;
+  status: 'pending' | 'approved' | 'rejected';
+  consentConfirmed: boolean;
+}
+
+export interface CustomOrder {
+  id: string;
+  clientName: string;
+  phone: string;
+  serviceType: 'cf-brand' | 'client-shirt';
+  model: string;
+  color: 'black' | 'white';
+  size: 'S' | 'M' | 'L' | 'XL' | 'XXL';
+  quantity: number;
+  unitPriceKz: number;
+  totalPriceKz: number;
+  phrase?: string;
+  fontStyle?: string;
+  fontColor?: string;
+  placement: string;
+  graphicDataUrl?: string;
+  notes?: string;
+  date: string;
+  status: 'novo' | 'em_producao' | 'concluido' | 'cancelado';
+}
+

@@ -7,6 +7,8 @@ import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { ColecaoGaleria } from './components/ColecaoGaleria';
 import { PersonalizationSection } from './components/PersonalizationSection';
+import { ReviewsSection } from './components/ReviewsSection';
+import { CommunitySection } from './components/CommunitySection';
 import { AboutSection } from './components/AboutSection';
 import { Footer } from './components/Footer';
 import { ProductDetailModal } from './components/ProductDetailModal';
@@ -14,6 +16,10 @@ import { CartDrawer } from './components/CartDrawer';
 import { QuickSearchModal } from './components/QuickSearchModal';
 import { SizeGuideModal } from './components/SizeGuideModal';
 import { PersonalizationModal } from './components/PersonalizationModal';
+import { AdminAuthModal } from './components/AdminAuthModal';
+import { AdminPanelModal } from './components/AdminPanelModal';
+import { getDynamicProducts } from './services/db';
+import { isAdminAuthenticated } from './services/adminAuth';
 import { getGeneralWhatsAppUrl } from './config/whatsapp';
 import { MessageCircle } from 'lucide-react';
 
@@ -23,6 +29,25 @@ function MainApp() {
   // Intro animation state
   const [showIntro, setShowIntro] = useState<boolean>(true);
   const [forceReplay, setForceReplay] = useState<boolean>(false);
+
+  // Dynamic products added through Admin panel
+  const [dynamicProducts, setDynamicProducts] = useState<Product[]>([]);
+
+  const loadCustomProducts = async () => {
+    try {
+      const custom = await getDynamicProducts();
+      setDynamicProducts(custom.filter((p) => p.status !== 'draft' && p.status !== 'archived'));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    loadCustomProducts();
+  }, []);
+
+  // Combined product catalog: 12 authentic default models + any approved admin models
+  const combinedProducts: Product[] = [...PRODUCTS, ...dynamicProducts];
 
   // Cart state persisted to localStorage
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -40,6 +65,10 @@ function MainApp() {
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Admin access modals (triggered via 3 clicks on CF logo)
+  const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -65,6 +94,8 @@ function MainApp() {
         setIsCartOpen(false);
         setIsSizeGuideOpen(false);
         setIsCustomizeModalOpen(false);
+        setIsAdminAuthOpen(false);
+        setIsAdminPanelOpen(false);
         setSelectedProduct(null);
       }
     };
@@ -145,6 +176,15 @@ function MainApp() {
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Trigger admin auth on 3 clicks on logo
+  const handleOpenAdminAuth = () => {
+    if (isAdminAuthenticated()) {
+      setIsAdminPanelOpen(true);
+    } else {
+      setIsAdminAuthOpen(true);
+    }
+  };
+
   return (
     <div
       className={`min-h-screen relative flex flex-col font-sans transition-colors duration-300 ${
@@ -164,12 +204,13 @@ function MainApp() {
         />
       )}
 
-      {/* 2. Sticky Header Navbar with Black & White Theme Switcher */}
+      {/* 2. Sticky Header Navbar with Black & White Theme Switcher and 3-Click Admin on Logo */}
       <Navbar
         cartCount={totalCartCount}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenCustomizeModal={() => setIsCustomizeModalOpen(true)}
+        onOpenAdminAuth={handleOpenAdminAuth}
       />
 
       {/* 3. Main Page Sections */}
@@ -181,16 +222,22 @@ function MainApp() {
           onSelectProduct={(product) => setSelectedProduct(product)}
         />
 
-        {/* Unified "Coleção e Galeria" Section with All 9 Real Photograph Models */}
+        {/* Unified "Coleção e Galeria" Section with All Authentic Real Models */}
         <ColecaoGaleria
-          products={PRODUCTS}
+          products={combinedProducts}
           onSelectProduct={(product) => setSelectedProduct(product)}
           onAddToCart={(product, size) => handleAddToCart(product, size, 1, 'black')}
           onOpenCustomize={() => scrollTo('personalizar')}
         />
 
-        {/* Personalization Studio & Request Form */}
+        {/* Professional T-Shirt Customizer Studio */}
         <PersonalizationSection />
+
+        {/* Visitor Reviews and Ratings (with pre-approval moderation) */}
+        <ReviewsSection />
+
+        {/* CF Community Section (Customer Photos wearing CF t-shirts with pre-approval) */}
+        <CommunitySection />
 
         {/* About Class Focus Philosophy */}
         <AboutSection />
@@ -201,6 +248,7 @@ function MainApp() {
         onReplayIntro={handleReplayIntro}
         onOpenSizeGuide={() => setIsSizeGuideOpen(true)}
         onOpenCustomize={() => setIsCustomizeModalOpen(true)}
+        onOpenAdminAuth={handleOpenAdminAuth}
       />
 
       {/* 5. Modals and Drawers */}
@@ -227,7 +275,7 @@ function MainApp() {
       <QuickSearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
-        products={PRODUCTS}
+        products={combinedProducts}
         onSelectProduct={(product) => setSelectedProduct(product)}
       />
 
@@ -239,6 +287,22 @@ function MainApp() {
       <PersonalizationModal
         isOpen={isCustomizeModalOpen}
         onClose={() => setIsCustomizeModalOpen(false)}
+      />
+
+      {/* 6. Admin Authentication & Panel Modals */}
+      <AdminAuthModal
+        isOpen={isAdminAuthOpen}
+        onClose={() => setIsAdminAuthOpen(false)}
+        onAuthenticated={() => {
+          setIsAdminAuthOpen(false);
+          setIsAdminPanelOpen(true);
+        }}
+      />
+
+      <AdminPanelModal
+        isOpen={isAdminPanelOpen}
+        onClose={() => setIsAdminPanelOpen(false)}
+        onProductsUpdated={loadCustomProducts}
       />
 
       {/* Floating Official WhatsApp Button */}

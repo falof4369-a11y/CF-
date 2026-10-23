@@ -9,15 +9,42 @@ interface FooterProps {
   onReplayIntro: () => void;
   onOpenSizeGuide: () => void;
   onOpenCustomize: () => void;
+  onOpenAdminAuth?: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   onReplayIntro,
   onOpenSizeGuide,
   onOpenCustomize,
+  onOpenAdminAuth,
 }) => {
   const { isWhite } = useTheme();
   const [activeInfoModal, setActiveInfoModal] = useState<'entregas' | 'trocas' | 'encomendas' | null>(null);
+
+  // 3-Click detection on CF Logo
+  const [footerLogoClicks, setFooterLogoClicks] = useState(0);
+  const footerClickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleFooterLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    scrollTo('inicio');
+
+    const next = footerLogoClicks + 1;
+    setFooterLogoClicks(next);
+
+    if (footerClickTimeoutRef.current) {
+      clearTimeout(footerClickTimeoutRef.current);
+    }
+
+    if (next >= 3) {
+      setFooterLogoClicks(0);
+      onOpenAdminAuth?.();
+    } else {
+      footerClickTimeoutRef.current = setTimeout(() => {
+        setFooterLogoClicks(0);
+      }, 1500);
+    }
+  };
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -41,8 +68,14 @@ export const Footer: React.FC<FooterProps> = ({
         >
           {/* Brand Col */}
           <div className="lg:col-span-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <CFLogo size="md" glow={true} />
+            <div
+              className="flex items-center gap-3 cursor-pointer group"
+              onClick={handleFooterLogoClick}
+              title="CF (Class Focus)"
+            >
+              <div className="transform transition-transform group-hover:scale-105">
+                <CFLogo size="md" glow={true} />
+              </div>
               <div>
                 <span
                   className={`font-street text-xl font-bold tracking-[0.25em] block ${
@@ -158,7 +191,23 @@ export const Footer: React.FC<FooterProps> = ({
                   onClick={() => scrollTo('personalizar')}
                   className={`transition-colors cursor-pointer ${isWhite ? 'hover:text-black' : 'hover:text-white'}`}
                 >
-                  Personalizar T-shirt
+                  Encomenda Personalizada
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => scrollTo('avaliacoes')}
+                  className={`transition-colors cursor-pointer ${isWhite ? 'hover:text-black' : 'hover:text-white'}`}
+                >
+                  Avaliações e Críticas
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => scrollTo('comunidade')}
+                  className={`transition-colors cursor-pointer ${isWhite ? 'hover:text-black' : 'hover:text-white'}`}
+                >
+                  Comunidade CF
                 </button>
               </li>
               <li>
@@ -295,9 +344,33 @@ export const Footer: React.FC<FooterProps> = ({
             isWhite ? 'text-zinc-600' : 'text-zinc-400'
           }`}
         >
-          <p>
-            &copy; 2026 CF &bull; CLASS FOCUS. TODOS OS DIREITOS RESERVADOS.
-          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <p>
+              &copy; 2026 CF &bull; CLASS FOCUS. TODOS OS DIREITOS RESERVADOS.
+            </p>
+            <button
+              onClick={() => scrollTo('avaliacoes')}
+              className="hover:underline cursor-pointer"
+            >
+              Avaliações
+            </button>
+            <button
+              onClick={() => scrollTo('comunidade')}
+              className="hover:underline cursor-pointer"
+            >
+              Comunidade CF
+            </button>
+            {onOpenAdminAuth && (
+              <button
+                type="button"
+                onClick={onOpenAdminAuth}
+                className="opacity-40 hover:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer underline text-[10px]"
+                title="Acesso Administrativo (código de 4 dígitos)"
+              >
+                Painel Admin
+              </button>
+            )}
+          </div>
           <p className="font-street tracking-widest text-xs uppercase font-bold">
             VESTE A TUA IDENTIDADE.
           </p>
