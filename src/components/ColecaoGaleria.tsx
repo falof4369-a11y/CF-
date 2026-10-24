@@ -4,6 +4,7 @@ import { CATEGORIES, formatPrice, OFFICIAL_PRICES } from '../data/products';
 import { getProductOrderWhatsAppUrl } from '../config/whatsapp';
 import { ImageLightbox } from './ImageLightbox';
 import { useTheme } from '../context/ThemeContext';
+import { useInView } from '../context/useInView';
 import { ShoppingBag, Eye, MessageCircle, Check, Filter, Sparkles, Tag, Maximize2 } from 'lucide-react';
 
 interface ColecaoGaleriaProps {
@@ -20,6 +21,7 @@ export const ColecaoGaleria: React.FC<ColecaoGaleriaProps> = ({
   onOpenCustomize,
 }) => {
   const { isWhite } = useTheme();
+  const { ref: headerRef, isInView: headerInView } = useInView<HTMLDivElement>();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedSizesByProduct, setSelectedSizesByProduct] = useState<Record<string, 'S' | 'M' | 'L' | 'XL' | 'XXL'>>({});
   const [addedAnimation, setAddedAnimation] = useState<string | null>(null);
@@ -118,11 +120,12 @@ export const ColecaoGaleria: React.FC<ColecaoGaleriaProps> = ({
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        {/* Section Header: Unificada "Coleção e Galeria" */}
+        {/* Section Header: Unificada "Coleção e Galeria" with Discreet Scroll Reveal */}
         <div
+          ref={headerRef}
           className={`flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b gap-4 ${
             isWhite ? 'border-zinc-200' : 'border-zinc-900'
-          }`}
+          } ${headerInView ? 'cf-title-enter' : 'opacity-0'}`}
         >
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -229,7 +232,7 @@ export const ColecaoGaleria: React.FC<ColecaoGaleriaProps> = ({
               <div
                 key={product.id}
                 onClick={() => onSelectProduct(product)}
-                className={`group rounded-lg overflow-hidden flex flex-col justify-between transition-all duration-300 cursor-pointer relative border ${
+                className={`group rounded-lg overflow-hidden flex flex-col justify-between transition-all duration-300 cursor-pointer relative border cf-card-hover ${
                   isWhite
                     ? 'bg-white border-zinc-200 hover:border-zinc-400 hover:shadow-xl shadow-sm'
                     : 'bg-zinc-950/80 border-zinc-900 hover:border-zinc-500 hover:shadow-[0_15px_35px_rgba(0,0,0,0.9)]'
@@ -255,7 +258,7 @@ export const ColecaoGaleria: React.FC<ColecaoGaleriaProps> = ({
                   <button
                     type="button"
                     onClick={(e) => handleOpenLightbox(product.id, e)}
-                    className={`p-2 rounded-full border transition-all shadow-md cursor-pointer ${
+                    className={`p-2 rounded-full border transition-all shadow-md cursor-pointer cf-btn-micro ${
                       isWhite
                         ? 'bg-white/90 hover:bg-black text-zinc-700 hover:text-white border-zinc-300 hover:border-black'
                         : 'bg-black/80 hover:bg-white text-zinc-300 hover:text-black border-zinc-700 hover:border-white shadow-lg'
@@ -279,7 +282,7 @@ export const ColecaoGaleria: React.FC<ColecaoGaleriaProps> = ({
                     src={product.image}
                     alt={product.name}
                     loading="lazy"
-                    className="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-105"
+                    className="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-108 cf-mask-reveal"
                   />
                   <div
                     className={`absolute bottom-2 left-3 opacity-0 group-hover:opacity-100 transition-opacity px-2 py-0.5 rounded border text-[10px] font-mono flex items-center gap-1 pointer-events-none ${
@@ -376,7 +379,7 @@ export const ColecaoGaleria: React.FC<ColecaoGaleriaProps> = ({
                       <button
                         type="button"
                         onClick={(e) => handleQuickAdd(product, e)}
-                        className={`flex-1 py-2.5 px-3 rounded text-xs font-street font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        className={`flex-1 py-2.5 px-3 rounded text-xs font-street font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer cf-btn-micro ${
                           isAdded
                             ? 'bg-green-600 text-white'
                             : isWhite
@@ -400,7 +403,7 @@ export const ColecaoGaleria: React.FC<ColecaoGaleriaProps> = ({
                       <button
                         type="button"
                         onClick={(e) => handleQuickWhatsApp(product, e)}
-                        className={`p-2.5 rounded border transition-all cursor-pointer ${
+                        className={`p-2.5 rounded border transition-all cursor-pointer cf-btn-micro ${
                           isWhite
                             ? 'bg-white border-zinc-300 hover:border-black text-zinc-700 hover:text-black'
                             : 'bg-black border-zinc-800 hover:border-white text-zinc-300 hover:text-white'

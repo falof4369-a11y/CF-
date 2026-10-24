@@ -1,0 +1,29 @@
+[
+  {
+    "id": "rev-seed-1",
+    "authorName": "Edmilson Santos",
+    "rating": 5,
+    "category": "Elogio",
+    "comment": "A qualidade do algodão 240g é incrível, super pesada e o caimento oversized é o melhor de Luanda. A estampa da Guerreira Tribal nas costas chamou a atenção de toda a gente!",
+    "date": "2026-03-14",
+    "status": "approved"
+  },
+  {
+    "id": "rev-seed-2",
+    "authorName": "Vanusa Domingos",
+    "rating": 5,
+    "category": "Qualidade",
+    "comment": "Comprei o modelo \"Sonhe Alto\". O branco é puro, não fica transparente e a serigrafia resiste perfeitamente às lavagens. Parabéns à CF pela originalidade!",
+    "date": "2026-03-28",
+    "status": "approved"
+  },
+  {
+    "id": "rev-seed-3",
+    "authorName": "Yuri Kassoma",
+    "rating": 5,
+    "category": "Elogio",
+    "comment": "Fiz a minha encomenda com a minha frase pelo formulário da CF. O atendimento via WhatsApp foi imediato e a entrega correu 100%. Recomendo vivamente.",
+    "date": "2026-04-05",
+    "status": "approved"
+  }
+]

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { PRODUCTS, OFFICIAL_PRICES, formatPrice } from '../data/products';
 import { useTheme } from '../context/ThemeContext';
-import { getCustomizationWhatsAppUrl, WHATSAPP_CONFIG } from '../config/whatsapp';
+import { useInView } from '../context/useInView';
+import { getCustomizationWhatsAppUrl, getGeneralWhatsAppUrl, WHATSAPP_CONFIG } from '../config/whatsapp';
 import { saveCustomOrder } from '../services/db';
 import { CustomOrder } from '../types';
 import {
@@ -17,6 +18,9 @@ import {
   HelpCircle,
   Shirt,
   Layers,
+  Copy,
+  Check,
+  Truck,
 } from 'lucide-react';
 
 interface PersonalizationSectionProps {
@@ -31,6 +35,7 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
   onOrderCompleted,
 }) => {
   const { isWhite } = useTheme();
+  const { ref: headerRef, isInView: headerInView } = useInView<HTMLDivElement>();
 
   // Service Type: CF Brand Shirt (6.000 Kz) vs Client Provided Shirt (4.000 Kz)
   const [serviceType, setServiceType] = useState<'cf-brand' | 'client-own'>('cf-brand');
@@ -41,7 +46,6 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>('Peça Personalizada / Frase Própria');
   const [size, setSize] = useState<'S' | 'M' | 'L' | 'XL' | 'XXL'>('L');
   const [color, setColor] = useState<'Preto Clássico' | 'Branco Puro' | 'Grafite Escuro'>('Preto Clássico');
-  const [placement, setPlacement] = useState<string>('Costas centro grande');
   const [fontStyle, setFontStyle] = useState<string>('Gótico Streetwear');
   const [phrase, setPhrase] = useState(initialPhrase);
   const [description, setDescription] = useState('');
@@ -55,11 +59,44 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
   // Status & Validation
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState(false);
 
-  // Price calculations
+  const [confirmedOrder, setConfirmedOrder] = useState<{
+    id: string;
+    orderNumber: string;
+    deliveryCode: string;
+    clientName: string;
+    phone: string;
+    model: string;
+    totalPriceKz: number;
+  } | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('cf_active_client_order');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [orderSuccess, setOrderSuccess] = useState<boolean>(() => {
+    try {
+      return !!sessionStorage.getItem('cf_active_client_order');
+    } catch {
+      return false;
+    }
+  });
+
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedOrderNum, setCopiedOrderNum] = useState(false);
+  const [copiedAll, setCopiedAll] = useState(false);
+
+  // Price calculations:
+  // - Animal or Ancestral model: 7.000 Kz
+  // - Text / Phrase / Typography: 6.000 Kz
+  // - Client supplied shirt: 4.000 Kz
+  const matchedProduct = PRODUCTS.find((p) => p.name === selectedModel);
+  const baseTeePrice = matchedProduct ? matchedProduct.priceKz : OFFICIAL_PRICES.typographyTee; // 6000 for phrase, 7000 for animal/ancestral
   const unitPriceKz =
-    serviceType === 'cf-brand' ? OFFICIAL_PRICES.cfBrandTee : OFFICIAL_PRICES.clientSuppliedTee;
+    serviceType === 'cf-brand' ? baseTeePrice : OFFICIAL_PRICES.clientSuppliedTee;
   const totalPriceKz = unitPriceKz * quantity;
 
   // Image Upload Handler with Canvas Compression
@@ -115,6 +152,22 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
     setImageName('');
   };
 
+  const copyToClipboard = (text: string, type: 'code' | 'num' | 'all') => {
+    try {
+      navigator.clipboard.writeText(text);
+      if (type === 'code') {
+        setCopiedCode(true);
+        setTimeout(() => setCopiedCode(false), 2500);
+      } else if (type === 'num') {
+        setCopiedOrderNum(true);
+        setTimeout(() => setCopiedOrderNum(false), 2500);
+      } else {
+        setCopiedAll(true);
+        setTimeout(() => setCopiedAll(false), 2500);
+      }
+    } catch {}
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -130,9 +183,8 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
 
     setSubmitting(true);
     try {
-      // 1. Register order in database for administrative tracking
-      const newOrder: CustomOrder = {
-        id: `ord-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      // 1. Register order on server / shared storage
+      const orderPayload: Partial<CustomOrder> = {
         clientName: clientName.trim(),
         phone: phone.trim(),
         serviceType: serviceType === 'cf-brand' ? 'cf-brand' : 'client-shirt',
@@ -145,16 +197,29 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
         phrase: phrase.trim() || undefined,
         fontStyle,
         fontColor: color === 'Branco Puro' ? 'Preto' : 'Branco',
-        placement,
         graphicDataUrl: imagePreview || undefined,
         notes: description.trim() || undefined,
         date: new Date().toISOString().slice(0, 10),
-        status: 'novo',
       };
 
-      await saveCustomOrder(newOrder);
+      const saved = await saveCustomOrder(orderPayload);
 
-      // 2. Build WhatsApp URL
+      const activeData = {
+        id: saved.id,
+        orderNumber: saved.orderNumber || `CF-2026-${saved.id.slice(-4).toUpperCase()}`,
+        deliveryCode: saved.deliveryCode || 'CF-DELIVERY',
+        clientName: clientName.trim(),
+        phone: phone.trim(),
+        model: selectedModel,
+        totalPriceKz,
+      };
+
+      setConfirmedOrder(activeData);
+      try {
+        sessionStorage.setItem('cf_active_client_order', JSON.stringify(activeData));
+      } catch {}
+
+      // 2. Build WhatsApp URL including the order number and delivery code
       const whatsappUrl = getCustomizationWhatsAppUrl({
         name: clientName.trim(),
         phone: phone.trim(),
@@ -164,13 +229,12 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
             ? `T-shirt da marca CF (${formatPrice(OFFICIAL_PRICES.cfBrandTee)})`
             : `T-shirt fornecida pelo cliente (${formatPrice(OFFICIAL_PRICES.clientSuppliedTee)})`,
         priceFormatted: `${formatPrice(unitPriceKz)} un. (Total: ${formatPrice(totalPriceKz)})`,
-        model: selectedModel,
+        model: `${selectedModel} [Nº Pedido: ${activeData.orderNumber}]`,
         size,
         color,
-        placement,
         fontStyle,
         phrase: phrase.trim() || 'Sem frase / apenas design personalizado',
-        description: description.trim() || 'Conforme especificado no pedido',
+        description: `Código de Entrega: ${activeData.deliveryCode}\n${description.trim() || 'Conforme especificado no pedido'}`,
         hasImageAttachment: !!imagePreview,
         imageName: imageName || undefined,
       });
@@ -183,13 +247,17 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
       onOrderCompleted?.();
     } catch (err: any) {
       console.error(err);
-      setFormError('Ocorreu um erro ao registar o pedido. Tenta novamente.');
+      setFormError('Ocorreu um erro ao registar o pedido no servidor. Tenta novamente.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleResetForm = () => {
+    try {
+      sessionStorage.removeItem('cf_active_client_order');
+    } catch {}
+    setConfirmedOrder(null);
     setOrderSuccess(false);
     setPhrase('');
     setDescription('');
@@ -211,8 +279,13 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
       }`}
     >
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-14">
+        {/* Section Header with Discreet Viewport Reveal */}
+        <div
+          ref={headerRef}
+          className={`text-center max-w-3xl mx-auto mb-12 sm:mb-14 ${
+            headerInView ? 'cf-title-enter' : 'opacity-0'
+          }`}
+        >
           <div
             className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-3 border ${
               isWhite
@@ -239,7 +312,7 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
               isWhite ? 'text-zinc-600' : 'text-zinc-400'
             }`}
           >
-            Escolhe se desejas uma T-shirt oficial da CF com algodão premium 240g (6.000 Kz) ou personalizar a tua própria peça (4.000 Kz).
+            Escolhe se desejas uma T-shirt oficial da CF com algodão premium 240g (6.000 Kz para frases e 7.000 Kz para animais e ancestrais) ou personalizar a tua própria peça (4.000 Kz).
             Preenche os campos abaixo e envia o teu pedido diretamente para o WhatsApp oficial da marca.
           </p>
 
@@ -265,43 +338,158 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
               : 'bg-zinc-950 border-zinc-800 shadow-[0_0_50px_rgba(0,0,0,0.8)]'
           }`}
         >
-          {orderSuccess ? (
-            <div className="text-center py-10 sm:py-14 space-y-4 animate-fade-in">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
-                <CheckCircle2 className="w-10 h-10" />
+          {orderSuccess && confirmedOrder ? (
+            <div className="py-6 sm:py-8 space-y-6 animate-fade-in max-w-2xl mx-auto">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500 flex items-center justify-center mx-auto text-emerald-400">
+                  <CheckCircle2 className="w-9 h-9" />
+                </div>
+
+                <h3 className="font-street text-2xl sm:text-3xl font-black uppercase tracking-tight">
+                  Pedido Registado com Sucesso!
+                </h3>
+
+                <p className="text-xs sm:text-sm font-mono text-zinc-400 max-w-md mx-auto leading-relaxed">
+                  O teu pedido foi guardado no nosso sistema e encaminhado para o WhatsApp oficial da CF (+244 958 194 301).
+                </p>
               </div>
 
-              <h3 className="font-street text-2xl sm:text-3xl font-black uppercase tracking-tight">
-                Pedido Enviado para o WhatsApp com Sucesso!
-              </h3>
+              {/* Secure Confirmation & Delivery Code Card */}
+              <div
+                className={`p-6 rounded-2xl border shadow-xl space-y-5 ${
+                  isWhite
+                    ? 'bg-zinc-50 border-zinc-300 text-zinc-900'
+                    : 'bg-zinc-900/80 border-zinc-700 text-white'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-4 border-b border-zinc-800">
+                  <div>
+                    <span className="text-[10px] font-mono uppercase text-zinc-500 block">Número do Pedido</span>
+                    <span className="font-street text-xl sm:text-2xl font-bold tracking-wider">
+                      {confirmedOrder.orderNumber}
+                    </span>
+                  </div>
 
-              <p className="text-xs sm:text-sm font-mono text-zinc-400 max-w-lg mx-auto leading-relaxed">
-                O teu pedido de encomenda personalizada foi registado no nosso sistema e encaminhado para o WhatsApp oficial da CF (+244 958 194 301).
-                A nossa equipa responderá rapidamente para confirmar todos os detalhes de produção e entrega em Luanda.
-              </p>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(confirmedOrder.orderNumber, 'num')}
+                    className={`px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-colors cursor-pointer ${
+                      copiedOrderNum
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                        : isWhite
+                        ? 'border-zinc-300 hover:bg-zinc-200 text-zinc-700'
+                        : 'border-zinc-700 hover:bg-zinc-800 text-zinc-300'
+                    }`}
+                  >
+                    {copiedOrderNum ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedOrderNum ? 'Copiado!' : 'Copiar Nº'}</span>
+                  </button>
+                </div>
 
-              <div className="pt-4 flex flex-wrap items-center justify-center gap-4">
+                {/* Delivery Code Display with High Prominence */}
+                <div
+                  className={`p-5 rounded-xl border text-center space-y-2 ${
+                    isWhite
+                      ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
+                      : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2 text-emerald-400">
+                    <Truck className="w-4 h-4" />
+                    <span className="text-xs font-mono uppercase font-bold tracking-widest">
+                      Código de Confirmação de Entrega
+                    </span>
+                  </div>
+
+                  <div className="font-mono text-3xl sm:text-4xl font-black tracking-[0.25em] text-emerald-400 py-1">
+                    {confirmedOrder.deliveryCode}
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(confirmedOrder.deliveryCode, 'code')}
+                      className="px-4 py-1.5 rounded-full text-xs font-mono uppercase font-bold tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                    >
+                      {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedCode ? 'Código Copiado!' : 'Copiar Código de Entrega'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mandatory Delivery Instructions */}
+                <div className="p-3.5 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-300 text-xs font-mono space-y-1">
+                  <div className="flex items-center gap-2 font-bold">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                    <span>Instrução Importante de Entrega:</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-amber-200/90">
+                    Guarda este código de 6 dígitos. Deverás apresentá-lo obrigatoriamente ao entregador no ato da entrega física para confirmar a receção da tua encomenda. O código é de utilização única.
+                  </p>
+                </div>
+
+                {/* Order Summary & Copy Full Details */}
+                <div className="text-xs font-mono space-y-1 text-zinc-400 pt-2 border-t border-zinc-800">
+                  <div className="flex justify-between">
+                    <span>Cliente:</span>
+                    <strong className="text-white">{confirmedOrder.clientName}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Modelo:</span>
+                    <span className="text-zinc-300">{confirmedOrder.model}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total Estimado:</span>
+                    <strong className="text-emerald-400">{formatPrice(confirmedOrder.totalPriceKz)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    copyToClipboard(
+                      `*PEDIDO CF OFICIAL*\nNº do Pedido: ${confirmedOrder.orderNumber}\nCódigo de Entrega: ${confirmedOrder.deliveryCode}\nCliente: ${confirmedOrder.clientName}\nPeça: ${confirmedOrder.model}\nTotal: ${formatPrice(confirmedOrder.totalPriceKz)}`,
+                      'all'
+                    )
+                  }
+                  className={`px-5 py-3 rounded text-xs font-mono uppercase font-bold tracking-wider border flex items-center gap-2 transition-colors cursor-pointer ${
+                    copiedAll
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      : isWhite
+                      ? 'border-zinc-300 hover:bg-zinc-100 text-zinc-800'
+                      : 'border-zinc-700 hover:bg-zinc-800 text-zinc-200'
+                  }`}
+                >
+                  {copiedAll ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedAll ? 'Dados Completos Copiados!' : 'Copiar Dados do Pedido'}</span>
+                </button>
+
+                <a
+                  href={getGeneralWhatsAppUrl(
+                    `*PEDIDO CF OFICIAL*\nNº do Pedido: ${confirmedOrder.orderNumber}\nCódigo de Entrega: ${confirmedOrder.deliveryCode}\nCliente: ${confirmedOrder.clientName}\nModelo: ${confirmedOrder.model}\nTotal: ${formatPrice(confirmedOrder.totalPriceKz)}\n\nOlá! Acabei de submeter este pedido no vosso site e gostaria de confirmar os detalhes de produção e entrega em Luanda.`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-6 py-3 rounded text-xs font-mono uppercase font-bold tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2 transition-colors cursor-pointer shadow-lg"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Enviar ao WhatsApp Oficial (+244 958 194 301)</span>
+                </a>
+
                 <button
                   type="button"
                   onClick={handleResetForm}
-                  className={`px-6 py-3 rounded text-xs font-mono uppercase font-bold tracking-wider border transition-colors cursor-pointer ${
+                  className={`px-5 py-3 rounded text-xs font-mono uppercase font-bold tracking-wider border transition-colors cursor-pointer ${
                     isWhite
                       ? 'bg-black text-white border-black hover:bg-zinc-800'
-                      : 'bg-white text-black border-white hover:bg-zinc-200'
+                      : 'bg-zinc-900 border-zinc-700 hover:bg-zinc-800 text-zinc-300'
                   }`}
                 >
                   Fazer Outro Pedido
                 </button>
-
-                <a
-                  href={WHATSAPP_CONFIG.directLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-6 py-3 rounded text-xs font-mono uppercase font-bold tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Abrir WhatsApp Novamente</span>
-                </a>
               </div>
             </div>
           ) : (
@@ -347,9 +535,9 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
                     </div>
 
                     <div className="pt-2 border-t border-zinc-800/40 flex items-center justify-between">
-                      <span className="text-[10px] font-mono uppercase text-zinc-400">Preço Fixo:</span>
+                      <span className="text-[10px] font-mono uppercase text-zinc-400">Preço:</span>
                       <span className="font-street text-xl sm:text-2xl font-black text-emerald-400">
-                        {formatPrice(OFFICIAL_PRICES.cfBrandTee)}
+                        {formatPrice(baseTeePrice)}
                       </span>
                     </div>
                   </button>
@@ -519,49 +707,26 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
                   </div>
                 </div>
 
-                {/* Placement & Font Style */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <label className="block text-[11px] font-mono text-zinc-500 uppercase mb-1">
-                      Posição da Estampa
-                    </label>
-                    <select
-                      value={placement}
-                      onChange={(e) => setPlacement(e.target.value)}
-                      className={`w-full px-3 py-2.5 text-xs rounded-lg border focus:outline-none ${
-                        isWhite
-                          ? 'bg-zinc-50 border-zinc-300 focus:border-black text-black'
-                          : 'bg-zinc-900 border-zinc-800 focus:border-white text-white'
-                      }`}
-                    >
-                      <option value="Costas centro grande">Costas (Centro Grande — Assinatura Streetwear)</option>
-                      <option value="Peito centro grande">Peito (Centro Grande)</option>
-                      <option value="Peito esquerdo pequeno">Peito Esquerdo (Discreto / Emblema)</option>
-                      <option value="Costas grande + Peito logo">Costas Grande + Peito Logótipo CF</option>
-                      <option value="Manga ou Outro">Manga ou Posição Específica</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-mono text-zinc-500 uppercase mb-1">
-                      Estilo de Tipografia / Letra
-                    </label>
-                    <select
-                      value={fontStyle}
-                      onChange={(e) => setFontStyle(e.target.value)}
-                      className={`w-full px-3 py-2.5 text-xs rounded-lg border focus:outline-none ${
-                        isWhite
-                          ? 'bg-zinc-50 border-zinc-300 focus:border-black text-black'
-                          : 'bg-zinc-900 border-zinc-800 focus:border-white text-white'
-                      }`}
-                    >
-                      <option value="Gótico Streetwear">Gótico Streetwear (Blackletter CF)</option>
-                      <option value="Sans Minimalista">Sans Minimalista (Moderno & Limpo)</option>
-                      <option value="Tribal Bold">Tribal Bold (Afro-Street)</option>
-                      <option value="Cursiva Urbana">Cursiva Urbana & Elegante</option>
-                      <option value="Tipografia de Autor">Tipografia de Autor Livre</option>
-                    </select>
-                  </div>
+                {/* Font Style */}
+                <div className="mt-4">
+                  <label className="block text-[11px] font-mono text-zinc-500 uppercase mb-1">
+                    Estilo de Tipografia / Letra
+                  </label>
+                  <select
+                    value={fontStyle}
+                    onChange={(e) => setFontStyle(e.target.value)}
+                    className={`w-full px-3 py-2.5 text-xs rounded-lg border focus:outline-none ${
+                      isWhite
+                        ? 'bg-zinc-50 border-zinc-300 focus:border-black text-black'
+                        : 'bg-zinc-900 border-zinc-800 focus:border-white text-white'
+                    }`}
+                  >
+                    <option value="Gótico Streetwear">Gótico Streetwear (Blackletter CF)</option>
+                    <option value="Sans Minimalista">Sans Minimalista (Moderno & Limpo)</option>
+                    <option value="Tribal Bold">Tribal Bold (Afro-Street)</option>
+                    <option value="Cursiva Urbana">Cursiva Urbana & Elegante</option>
+                    <option value="Tipografia de Autor">Tipografia de Autor Livre</option>
+                  </select>
                 </div>
               </div>
 
@@ -730,7 +895,7 @@ export const PersonalizationSection: React.FC<PersonalizationSectionProps> = ({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className={`w-full py-4 rounded-xl font-street text-sm sm:text-base font-bold uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-xl cursor-pointer ${
+                  className={`w-full py-4 rounded-xl font-street text-sm sm:text-base font-bold uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-xl cursor-pointer cf-btn-micro ${
                     isWhite
                       ? 'bg-black text-white hover:bg-zinc-800'
                       : 'bg-white text-black hover:bg-zinc-200'

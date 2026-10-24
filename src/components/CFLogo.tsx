@@ -49,7 +49,7 @@ export const CFLogo: React.FC<CFLogoProps> = ({
     : '';
 
   return (
-    <div className={`inline-flex flex-col items-center select-none ${className}`}>
+    <div className={`inline-flex flex-col items-center select-none cf-logo-micro ${className}`}>
       <svg
         width={width}
         height={height}

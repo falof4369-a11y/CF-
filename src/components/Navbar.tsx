@@ -20,7 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { theme, isWhite, toggleTheme } = useTheme();
   const [activeSection, setActiveSection] = useState<
-    'inicio' | 'colecao' | 'personalizar' | 'avaliacoes' | 'comunidade' | 'sobre-nos'
+    'inicio' | 'colecao' | 'personalizar' | 'avaliacoes' | 'sobre-nos'
   >('inicio');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -55,7 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       setScrolled(window.scrollY > 30);
 
       // Section spy
-      const sections = ['inicio', 'colecao', 'personalizar', 'avaliacoes', 'comunidade', 'sobre-nos'] as const;
+      const sections = ['inicio', 'colecao', 'personalizar', 'avaliacoes', 'sobre-nos'] as const;
       const scrollPos = window.scrollY + 180;
 
       for (const section of sections) {
@@ -75,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const scrollTo = (id: 'inicio' | 'colecao' | 'personalizar' | 'avaliacoes' | 'comunidade' | 'sobre-nos') => {
+  const scrollTo = (id: 'inicio' | 'colecao' | 'personalizar' | 'avaliacoes' | 'sobre-nos') => {
     setActiveSection(id);
     setMobileMenuOpen(false);
     const element = document.getElementById(id);
@@ -217,28 +217,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
-              onClick={() => scrollTo('comunidade')}
-              className={`text-xs uppercase tracking-[0.2em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
-                activeSection === 'comunidade'
-                  ? isWhite
-                    ? 'text-black font-bold'
-                    : 'text-white font-bold'
-                  : isWhite
-                  ? 'text-zinc-600 hover:text-black'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              COMUNIDADE
-              {activeSection === 'comunidade' && (
-                <span
-                  className={`absolute bottom-0 left-0 right-0 h-[2px] transition-all ${
-                    isWhite ? 'bg-black' : 'bg-white'
-                  }`}
-                />
-              )}
-            </button>
-
-            <button
               onClick={() => scrollTo('sobre-nos')}
               className={`text-xs uppercase tracking-[0.2em] font-medium transition-all relative py-1 focus:outline-none cursor-pointer ${
                 activeSection === 'sobre-nos'
@@ -300,7 +278,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={onOpenSearch}
-              className={`p-2 rounded-full transition-colors active:scale-95 cursor-pointer ${
+              className={`p-2 rounded-full transition-all active:scale-95 cursor-pointer cf-btn-micro ${
                 isWhite
                   ? 'text-zinc-700 hover:text-black hover:bg-zinc-100'
                   : 'text-zinc-300 hover:text-white hover:bg-white/10'
@@ -315,7 +293,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={onOpenCart}
-              className={`relative p-2 rounded-full transition-colors active:scale-95 flex items-center justify-center cursor-pointer ${
+              className={`relative p-2 rounded-full transition-all active:scale-95 flex items-center justify-center cursor-pointer cf-btn-micro ${
                 isWhite
                   ? 'text-zinc-700 hover:text-black hover:bg-zinc-100'
                   : 'text-zinc-300 hover:text-white hover:bg-white/10'
@@ -341,7 +319,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={onOpenCustomizeModal}
-              className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 border text-xs font-mono tracking-widest uppercase transition-all cursor-pointer ${
+              className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 border text-xs font-mono tracking-widest uppercase transition-all cursor-pointer cf-btn-micro ${
                 isWhite
                   ? 'border-black text-black hover:bg-black hover:text-white'
                   : 'border-white/30 hover:border-white text-white hover:bg-white hover:text-black'
@@ -415,16 +393,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               AVALIAÇÕES & CRÍTICAS
-            </button>
-            <button
-              onClick={() => scrollTo('comunidade')}
-              className={`text-left font-street text-xl tracking-[0.2em] font-bold py-2 border-b transition-colors ${
-                isWhite
-                  ? 'text-black border-zinc-200 hover:text-zinc-600'
-                  : 'text-white border-zinc-900 hover:text-zinc-300'
-              }`}
-            >
-              COMUNIDADE CF
             </button>
             <button
               onClick={() => scrollTo('sobre-nos')}

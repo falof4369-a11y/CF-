@@ -85,3 +85,137 @@ html.theme-white .subtle-glow {
 html.theme-white .glow-active {
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
 }
+
+/* ==========================================================================
+   Micro-animations & Interactive Effects for CF Brand Site
+   Preserving all existing animations and respecting prefers-reduced-motion
+   ========================================================================== */
+
+/* 1. Elegant hover on product cards */
+.cf-card-hover {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.35s ease;
+  will-change: transform, box-shadow;
+}
+
+.cf-card-hover:hover {
+  transform: translateY(-4px) scale(1.018);
+}
+
+/* 2. Gradual reveal of gallery photographs through animated masks */
+@keyframes cfMaskReveal {
+  0% {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0.2;
+    transform: scale(1.05);
+  }
+  100% {
+    clip-path: inset(0 0 0% 0);
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cf-mask-reveal {
+  animation: cfMaskReveal 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: clip-path, transform, opacity;
+}
+
+/* 3. Discreet reveal on section titles when entering viewport */
+@keyframes cfTitleReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cf-title-enter {
+  animation: cfTitleReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 4. Micro-animations on buttons (Order, WhatsApp, Navigation) */
+.cf-btn-micro {
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.22s ease,
+              background-color 0.2s ease,
+              color 0.2s ease;
+  will-change: transform;
+}
+
+.cf-btn-micro:hover {
+  transform: translateY(-2px);
+}
+
+.cf-btn-micro:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+/* WhatsApp floating button subtle breathing pulse */
+@keyframes cfPulseRing {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+
+.cf-whatsapp-ring {
+  position: relative;
+}
+
+.cf-whatsapp-ring::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  border: 1.5px solid currentColor;
+  opacity: 0.35;
+  animation: cfPulseRing 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
+}
+
+/* 7. Discreet micro-animation on CF logo on hover/interaction */
+.cf-logo-micro {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+
+.cf-logo-micro:hover {
+  transform: scale(1.05);
+}
+
+.cf-logo-micro:hover .cf-crown circle {
+  transition: filter 0.3s ease;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.85));
+}
+
+html.theme-white .cf-logo-micro:hover .cf-crown circle {
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.65));
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .cf-card-hover,
+  .cf-mask-reveal,
+  .cf-title-enter,
+  .cf-btn-micro,
+  .cf-whatsapp-ring::after,
+  .cf-logo-micro {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+

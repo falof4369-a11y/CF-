@@ -342,7 +342,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <button
                 type="button"
                 onClick={handleAdd}
-                className={`w-full py-4 text-xs font-street font-bold tracking-[0.2em] uppercase rounded transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md ${
+                className={`w-full py-4 text-xs font-street font-bold tracking-[0.2em] uppercase rounded transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md cf-btn-micro ${
                   addedSuccess
                     ? 'bg-green-600 text-white'
                     : isWhite
@@ -366,7 +366,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <button
                 type="button"
                 onClick={handleDirectWhatsApp}
-                className={`w-full py-3 text-xs font-street font-bold tracking-[0.2em] uppercase rounded transition-all flex items-center justify-center gap-2 cursor-pointer border ${
+                className={`w-full py-3 text-xs font-street font-bold tracking-[0.2em] uppercase rounded transition-all flex items-center justify-center gap-2 cursor-pointer border cf-btn-micro ${
                   isWhite
                     ? 'bg-white border-zinc-300 hover:border-black text-black hover:bg-zinc-50'
                     : 'bg-black border-white/40 hover:border-white text-white hover:bg-white/10'

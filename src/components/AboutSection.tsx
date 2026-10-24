@@ -1,10 +1,12 @@
 import React from 'react';
 import { CFLogo } from './CFLogo';
 import { useTheme } from '../context/ThemeContext';
+import { useInView } from '../context/useInView';
 import { ShieldCheck, Flame, Crown, Palette } from 'lucide-react';
 
 export const AboutSection: React.FC = () => {
   const { isWhite } = useTheme();
+  const { ref: headerRef, isInView: headerInView } = useInView<HTMLDivElement>();
 
   return (
     <section
@@ -35,8 +37,13 @@ export const AboutSection: React.FC = () => {
           </span>
         </div>
 
-        {/* Section Headline */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-16">
+        {/* Section Headline with Scroll Reveal */}
+        <div
+          ref={headerRef}
+          className={`grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-16 ${
+            headerInView ? 'cf-title-enter' : 'opacity-0'
+          }`}
+        >
           <div className="lg:col-span-7">
             <h2
               className={`font-street text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black italic tracking-tight uppercase leading-[1.05] ${

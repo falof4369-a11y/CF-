@@ -1,9 +1,25 @@
-import { Product, Review, CommunityPhoto, CustomOrder } from '../types';
+import { Product, Review, CustomOrder } from '../types';
+import { formatPrice } from '../data/products';
+import {
+  fetchApprovedReviews,
+  fetchAdminReviews,
+  submitClientReview,
+  updateAdminReviewStatus,
+  deleteAdminReview,
+  fetchSharedProducts,
+  saveSharedProductAPI,
+  deleteSharedProductAPI,
+  fetchAdminOrdersAPI,
+  createOrderAPI,
+  updateOrderStatusAPI,
+  updateOrderFinancialAPI,
+  deleteOrderAPI,
+} from './api';
 
 const DB_NAME = 'CF_BRAND_STORE_V2';
 const DB_VERSION = 2;
 
-// Seed data: initial approved reviews from genuine customers in Luanda
+// Fallback seed data if offline on initial load
 const SEED_APPROVED_REVIEWS: Review[] = [
   {
     id: 'rev-seed-1',
@@ -37,32 +53,6 @@ const SEED_APPROVED_REVIEWS: Review[] = [
   },
 ];
 
-// Seed data: initial approved customer community photos
-const SEED_APPROVED_COMMUNITY_PHOTOS: CommunityPhoto[] = [
-  {
-    id: 'comm-seed-1',
-    authorName: 'Mauro Silva',
-    authorHandle: '@mauro.street',
-    tshirtModel: 'GUERREIRA TRIBAL (Oversized 240g)',
-    caption: 'Veste a tua identidade. CF na rua em Talatona.',
-    imageUrl: '/assets/aistudio/Camisolas_Negras_com_Guerreira_Tribal_9977a92d.png',
-    date: '2026-03-20',
-    status: 'approved',
-    consentConfirmed: true,
-  },
-  {
-    id: 'comm-seed-2',
-    authorName: 'Eliana Costa',
-    authorHandle: '@eliana_c',
-    tshirtModel: 'SONHE ALTO: O SEU DEUS É GRANDE',
-    caption: 'Estilo limpo e mensagem que inspira. Streetwear de autor!',
-    imageUrl: '/assets/aistudio/T-shirts_brancas_com_mensagem_inspiradora_2de484f3.png',
-    date: '2026-04-02',
-    status: 'approved',
-    consentConfirmed: true,
-  },
-];
-
 function notifyDataUpdated(storeName: string) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
@@ -91,9 +81,6 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('reviews')) {
         db.createObjectStore('reviews', { keyPath: 'id' });
       }
-      if (!db.objectStoreNames.contains('communityPhotos')) {
-        db.createObjectStore('communityPhotos', { keyPath: 'id' });
-      }
       if (!db.objectStoreNames.contains('customOrders')) {
         db.createObjectStore('customOrders', { keyPath: 'id' });
       }
@@ -105,25 +92,16 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
     request.onblocked = () => {
-      console.warn('IndexedDB bloqueado');
       resolve(request.result);
     };
   });
 }
 
-// LocalStorage helpers with error resilience
 function getFromLocalStorage<T>(storeName: string): T[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(`cf_store_${storeName}`);
     if (raw) return JSON.parse(raw);
-    // Legacy migration check
-    const legacy = localStorage.getItem(`cf_idb_${storeName}`);
-    if (legacy) {
-      const parsed = JSON.parse(legacy);
-      localStorage.setItem(`cf_store_${storeName}`, legacy);
-      return parsed;
-    }
   } catch (e) {
     console.warn(`Erro ao ler localStorage para ${storeName}:`, e);
   }
@@ -139,7 +117,6 @@ function saveToLocalStorage<T>(storeName: string, items: T[]): void {
   }
 }
 
-// Unified Store Get
 async function getAllFromStore<T>(storeName: string): Promise<T[]> {
   let idbItems: T[] | null = null;
   try {
@@ -157,34 +134,21 @@ async function getAllFromStore<T>(storeName: string): Promise<T[]> {
 
   const localItems = getFromLocalStorage<T>(storeName);
 
-  // If IndexedDB returned records, ensure localStorage backup is synchronized
   if (idbItems && idbItems.length > 0) {
     saveToLocalStorage(storeName, idbItems);
     return idbItems;
   }
 
-  // If IndexedDB was empty or failed, check if localStorage has data
   if (localItems && localItems.length > 0) {
-    // Attempt to backfill IndexedDB in background
-    try {
-      const db = await openDatabase();
-      const tx = db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      for (const item of localItems) {
-        store.put(item);
-      }
-    } catch {}
     return localItems;
   }
 
   return idbItems || [];
 }
 
-// Unified Store Put
 async function putToStore<T>(storeName: string, item: T): Promise<void> {
   const key = (item as any).id || (item as any).key;
 
-  // 1. Synchronously update LocalStorage
   try {
     const current = getFromLocalStorage<any>(storeName);
     const idx = current.findIndex((x) => (x.id || x.key) === key);
@@ -198,7 +162,6 @@ async function putToStore<T>(storeName: string, item: T): Promise<void> {
     console.warn('localStorage put error:', e);
   }
 
-  // 2. Persist to IndexedDB
   try {
     const db = await openDatabase();
     await new Promise<void>((resolve, reject) => {
@@ -216,9 +179,7 @@ async function putToStore<T>(storeName: string, item: T): Promise<void> {
   notifyDataUpdated(storeName);
 }
 
-// Unified Store Delete
 async function deleteFromStore(storeName: string, key: string): Promise<void> {
-  // 1. Synchronously remove from LocalStorage
   try {
     const current = getFromLocalStorage<any>(storeName);
     const filtered = current.filter((x) => (x.id || x.key) !== key);
@@ -227,7 +188,6 @@ async function deleteFromStore(storeName: string, key: string): Promise<void> {
     console.warn('localStorage delete error:', e);
   }
 
-  // 2. Remove from IndexedDB
   try {
     const db = await openDatabase();
     await new Promise<void>((resolve, reject) => {
@@ -245,139 +205,324 @@ async function deleteFromStore(storeName: string, key: string): Promise<void> {
   notifyDataUpdated(storeName);
 }
 
-// --- PRODUCTS ---
+// --- DYNAMIC PRODUCTS (ADMIN-MANAGED) ---
 export async function getDynamicProducts(): Promise<Product[]> {
+  try {
+    const serverProds = await fetchSharedProducts();
+    if (serverProds && serverProds.length > 0) {
+      saveToLocalStorage('products', serverProds);
+      return serverProds;
+    }
+  } catch (e) {
+    console.warn('Failed to load server products, checking local store:', e);
+  }
   return await getAllFromStore<Product>('products');
 }
 
 export async function saveDynamicProduct(product: Product): Promise<void> {
   await putToStore('products', product);
+  try {
+    await saveSharedProductAPI(product);
+  } catch (e) {
+    console.warn('Could not sync product with server:', e);
+  }
 }
 
 export async function deleteDynamicProduct(id: string): Promise<void> {
   await deleteFromStore('products', id);
+  try {
+    await deleteSharedProductAPI(id);
+  } catch (e) {
+    console.warn('Could not delete product on server:', e);
+  }
 }
 
-// --- REVIEWS & RATINGS ---
-export async function getAllReviews(): Promise<Review[]> {
-  const isInitialized = typeof window !== 'undefined' && localStorage.getItem('cf_reviews_initialized_v2') === 'true';
-  const reviews = await getAllFromStore<Review>('reviews');
+// --- REVIEWS & RATINGS (SHARED ONLINE DATABASE WITH PROGRESSIVE LOADING) ---
 
-  if (!isInitialized) {
-    // Only seed the very first time on a fresh setup if empty
-    if (reviews.length === 0) {
-      for (const seed of SEED_APPROVED_REVIEWS) {
-        await putToStore('reviews', seed);
-      }
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cf_reviews_initialized_v2', 'true');
-      }
-      return SEED_APPROVED_REVIEWS;
+/**
+ * Get all reviews (for Admin area).
+ * Pulls directly from shared server API so changes are immediately shared across all devices.
+ */
+export async function getAllReviews(): Promise<Review[]> {
+  try {
+    const adminRes = await fetchAdminReviews('all');
+    if (adminRes && Array.isArray(adminRes.reviews)) {
+      saveToLocalStorage('reviews', adminRes.reviews);
+      return adminRes.reviews;
     }
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cf_reviews_initialized_v2', 'true');
-    }
+  } catch (err) {
+    console.warn('Admin reviews fetch error (will use local cache fallback):', err);
   }
 
-  return reviews;
+  // Fallback to local store
+  const local = await getAllFromStore<Review>('reviews');
+  if (local.length > 0) return local;
+
+  return SEED_APPROVED_REVIEWS;
 }
 
-export async function getApprovedReviews(): Promise<Review[]> {
-  const all = await getAllReviews();
-  return all.filter((r) => r.status === 'approved');
+/**
+ * Get public approved reviews from the shared database.
+ */
+export async function getApprovedReviews(category: string = 'all'): Promise<Review[]> {
+  try {
+    const res = await fetchApprovedReviews(1, 100, category);
+    if (res && Array.isArray(res.reviews)) {
+      return res.reviews;
+    }
+  } catch (err) {
+    console.warn('Public approved reviews fetch error (using fallback):', err);
+  }
+
+  const all = await getAllFromStore<Review>('reviews');
+  const approved = all.filter((r) => r.status === 'approved');
+  if (approved.length > 0) {
+    return category === 'all' ? approved : approved.filter((r) => r.category === category);
+  }
+
+  return category === 'all'
+    ? SEED_APPROVED_REVIEWS
+    : SEED_APPROVED_REVIEWS.filter((r) => r.category === category);
 }
 
+/**
+ * Save / submit review.
+ * Sends directly to the server with status 'pending' (client can NEVER set status to approved).
+ */
 export async function saveReview(review: Review): Promise<void> {
-  await putToStore('reviews', review);
+  // Always enforce pending status for clients
+  const safeReview: Review = {
+    ...review,
+    status: 'pending',
+  };
+
+  try {
+    await submitClientReview({
+      authorName: safeReview.authorName,
+      rating: safeReview.rating,
+      category: safeReview.category,
+      comment: safeReview.comment,
+    });
+  } catch (err) {
+    console.warn('Server review submission warning, buffering locally:', err);
+    await putToStore('reviews', safeReview);
+    throw err;
+  }
+
+  // Also buffer in local store for seamless UI feedback
+  await putToStore('reviews', safeReview);
 }
 
+/**
+ * Admin action: update status (approved or rejected).
+ * Syncs directly to server so all visitors immediately see the update.
+ */
 export async function updateReviewStatus(
   id: string,
   status: 'approved' | 'rejected' | 'pending'
 ): Promise<void> {
-  const all = await getAllReviews();
+  try {
+    await updateAdminReviewStatus(id, status);
+  } catch (err) {
+    console.warn('Server update error, updating local store:', err);
+  }
+
+  const all = await getAllFromStore<Review>('reviews');
   const target = all.find((r) => r.id === id);
   if (target) {
     target.status = status;
     await putToStore('reviews', target);
+  } else {
+    notifyDataUpdated('reviews');
   }
 }
 
+/**
+ * Admin action: permanently delete review.
+ * Deletes from shared server database, permanently removing it for all visitors.
+ */
 export async function deleteReview(id: string): Promise<void> {
+  try {
+    await deleteAdminReview(id);
+  } catch (err) {
+    console.warn('Server delete review warning:', err);
+  }
+
   await deleteFromStore('reviews', id);
 }
 
-// --- COMMUNITY PHOTOS ---
-export async function getAllCommunityPhotos(): Promise<CommunityPhoto[]> {
-  const isInitialized = typeof window !== 'undefined' && localStorage.getItem('cf_community_photos_initialized_v2') === 'true';
-  const photos = await getAllFromStore<CommunityPhoto>('communityPhotos');
+// --- CUSTOM ORDERS (ZERO SEED - TEST ENVIRONMENT INITIAL STATE: 0) ---
 
-  if (!isInitialized) {
-    if (photos.length === 0) {
-      for (const seed of SEED_APPROVED_COMMUNITY_PHOTOS) {
-        await putToStore('communityPhotos', seed);
-      }
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('cf_community_photos_initialized_v2', 'true');
-      }
-      return SEED_APPROVED_COMMUNITY_PHOTOS;
-    }
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cf_community_photos_initialized_v2', 'true');
-    }
-  }
-
-  return photos;
+// Filter out any legacy demonstration orders to guarantee clean zero state for financial tests
+function filterLegacyDummies(orders: CustomOrder[]): CustomOrder[] {
+  const dummyIds = new Set(['ord-cf-1001', 'ord-cf-1002', 'ord-cf-1003']);
+  return orders.filter((o) => !dummyIds.has(o.id));
 }
 
-export async function getApprovedCommunityPhotos(): Promise<CommunityPhoto[]> {
-  const all = await getAllCommunityPhotos();
-  return all.filter((p) => p.status === 'approved');
-}
-
-export async function saveCommunityPhoto(photo: CommunityPhoto): Promise<void> {
-  await putToStore('communityPhotos', photo);
-}
-
-export async function updateCommunityPhotoStatus(
-  id: string,
-  status: 'approved' | 'rejected' | 'pending'
-): Promise<void> {
-  const all = await getAllCommunityPhotos();
-  const target = all.find((p) => p.id === id);
-  if (target) {
-    target.status = status;
-    await putToStore('communityPhotos', target);
-  }
-}
-
-export async function deleteCommunityPhoto(id: string): Promise<void> {
-  await deleteFromStore('communityPhotos', id);
-}
-
-// --- CUSTOM ORDERS ---
 export async function getAllCustomOrders(): Promise<CustomOrder[]> {
-  return await getAllFromStore<CustomOrder>('customOrders');
+  try {
+    // 1. Primary: Server-authoritative storage in data/orders.json
+    const serverOrders = await fetchAdminOrdersAPI();
+    const cleanServerOrders = filterLegacyDummies(serverOrders);
+
+    // Synchronize local cache with server
+    saveToLocalStorage('customOrders', cleanServerOrders);
+    return cleanServerOrders;
+  } catch (err) {
+    // 2. Offline fallback to local storage
+    console.warn('Could not reach orders API, using local storage fallback:', err);
+    const localOrders = await getAllFromStore<CustomOrder>('customOrders');
+    const cleanLocal = filterLegacyDummies(localOrders);
+    return cleanLocal;
+  }
 }
 
-export async function saveCustomOrder(order: CustomOrder): Promise<void> {
-  await putToStore('customOrders', order);
+export async function saveCustomOrder(order: Partial<CustomOrder>): Promise<CustomOrder> {
+  const safePayload: Partial<CustomOrder> = {
+    ...order,
+    fulfillmentStatus: order.fulfillmentStatus || 'pendente',
+    financialStatus: order.financialStatus || 'por_pagar',
+    orderStatus: order.orderStatus || 'recebido',
+    paymentStatus: order.paymentStatus || 'por_confirmar',
+    deliveryStatus: order.deliveryStatus || 'pendente',
+    amountReceived: order.amountReceived !== undefined ? order.amountReceived : 0,
+  };
+
+  try {
+    const res = await createOrderAPI(safePayload);
+    await putToStore('customOrders', res.order);
+    notifyDataUpdated('customOrders');
+    return res.order;
+  } catch (err) {
+    console.warn('Server save failed, saving to local store:', err);
+    const localFallbackOrder: CustomOrder = {
+      ...(safePayload as CustomOrder),
+      id: safePayload.id || `ord-${Date.now()}`,
+      date: safePayload.date || new Date().toISOString().slice(0, 10),
+      status: 'novo',
+    };
+    await putToStore('customOrders', localFallbackOrder);
+    notifyDataUpdated('customOrders');
+    return localFallbackOrder;
+  }
 }
 
 export async function updateCustomOrderStatus(
   id: string,
   status: CustomOrder['status']
 ): Promise<void> {
+  try {
+    const mappedOrderStatus =
+      status === 'concluido'
+        ? 'pronto_para_entrega'
+        : status === 'cancelado'
+        ? 'cancelado'
+        : status === 'em_producao'
+        ? 'em_preparacao'
+        : 'recebido';
+
+    await updateOrderStatusAPI(id, { orderStatus: mappedOrderStatus });
+  } catch (e) {
+    console.warn('Server status update warning:', e);
+  }
+
   const all = await getAllCustomOrders();
   const target = all.find((o) => o.id === id);
   if (target) {
     target.status = status;
     await putToStore('customOrders', target);
+    notifyDataUpdated('customOrders');
   }
 }
 
+export async function updateOrderFulfillment(
+  id: string,
+  fulfillmentStatus: 'atendido' | 'pendente'
+): Promise<CustomOrder | null> {
+  const mappedDelivery = fulfillmentStatus === 'atendido' ? 'entregue_e_confirmada' : 'pendente';
+
+  try {
+    await updateOrderStatusAPI(id, { deliveryStatus: mappedDelivery });
+  } catch (e) {
+    console.warn('Server delivery status update warning:', e);
+  }
+
+  const all = await getAllCustomOrders();
+  const target = all.find((o) => o.id === id);
+  if (target) {
+    target.fulfillmentStatus = fulfillmentStatus;
+    target.deliveryStatus = mappedDelivery;
+    if (fulfillmentStatus === 'atendido') {
+      target.status = 'concluido';
+      target.fulfillmentDate = new Date().toISOString().slice(0, 10);
+      if (!target.financialStatus || target.financialStatus === 'por_pagar') {
+        target.financialStatus = 'atendido_por_confirmar';
+      }
+    } else {
+      target.status = 'novo';
+      target.fulfillmentDate = undefined;
+    }
+    await putToStore('customOrders', target);
+    notifyDataUpdated('customOrders');
+    return target;
+  }
+  return null;
+}
+
+export async function updateOrderFinancialRecord(
+  id: string,
+  amountReceived: number,
+  differenceReason?: string
+): Promise<CustomOrder | null> {
+  try {
+    await updateOrderFinancialAPI(id, { amountReceived, differenceReason });
+  } catch (e) {
+    console.warn('Server financial update warning:', e);
+  }
+
+  const all = await getAllCustomOrders();
+  const target = all.find((o) => o.id === id);
+  if (target) {
+    const expected = target.totalPriceKz || 0;
+    target.amountReceived = amountReceived;
+    target.financialConfirmedDate = new Date().toISOString().slice(0, 10);
+
+    const diff = amountReceived - expected;
+
+    if (amountReceived === 0) {
+      target.financialStatus = 'por_pagar';
+      target.paymentStatus = 'nao_pago';
+      target.differenceReason = differenceReason || undefined;
+    } else if (amountReceived > 0 && amountReceived < expected) {
+      target.financialStatus = 'parcialmente_pago';
+      target.paymentStatus = 'parcialmente_pago';
+      target.differenceReason =
+        differenceReason || `Pagamento parcial. Saldo em falta: ${formatPrice(expected - amountReceived)}`;
+    } else if (diff === 0) {
+      target.financialStatus = 'confirmado';
+      target.paymentStatus = 'pago';
+      target.differenceReason = 'Valores correspondentes';
+    } else {
+      target.financialStatus = 'diferenca_registada';
+      target.paymentStatus = amountReceived > expected ? 'pago' : 'parcialmente_pago';
+      target.differenceReason = differenceReason || 'Diferença registada e autorizada pelo administrador';
+    }
+
+    await putToStore('customOrders', target);
+    notifyDataUpdated('customOrders');
+    return target;
+  }
+  return null;
+}
+
 export async function deleteCustomOrder(id: string): Promise<void> {
+  try {
+    await deleteOrderAPI(id);
+  } catch (e) {
+    console.warn('Server delete order warning:', e);
+  }
   await deleteFromStore('customOrders', id);
+  notifyDataUpdated('customOrders');
 }
 
 // --- SETTINGS (PIN & BACKUP) ---
@@ -410,16 +555,14 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
 export async function exportAllDataAsJSON(): Promise<string> {
   const products = await getDynamicProducts();
   const reviews = await getAllReviews();
-  const communityPhotos = await getAllCommunityPhotos();
   const customOrders = await getAllCustomOrders();
 
   const backup = {
     app: 'CF_CLASS_FOCUS',
-    version: '2.0',
+    version: '2.5',
     exportDate: new Date().toISOString(),
     products,
     reviews,
-    communityPhotos,
     customOrders,
   };
 
@@ -440,9 +583,6 @@ export async function importDataFromJSON(
     }
     if (Array.isArray(data.reviews)) {
       for (const r of data.reviews) await saveReview(r);
-    }
-    if (Array.isArray(data.communityPhotos)) {
-      for (const c of data.communityPhotos) await saveCommunityPhoto(c);
     }
     if (Array.isArray(data.customOrders)) {
       for (const o of data.customOrders) await saveCustomOrder(o);

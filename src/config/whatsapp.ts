@@ -79,7 +79,6 @@ export const getCustomizationWhatsAppUrl = (data: {
   model: string;
   size: string;
   color: string;
-  placement: string;
   fontStyle: string;
   phrase: string;
   description: string;
@@ -101,7 +100,6 @@ export const getCustomizationWhatsAppUrl = (data: {
     `*Modelo:* ${data.model}\n` +
     `*Tamanho:* ${data.size}\n` +
     `*Cor da Peça:* ${data.color}\n` +
-    `*Posição da Estampa:* ${data.placement}\n` +
     `*Estilo da Fonte:* ${data.fontStyle}\n` +
     `*Frase / Texto:* "${data.phrase}"\n` +
     `*Descrição do Design:* ${data.description}\n` +

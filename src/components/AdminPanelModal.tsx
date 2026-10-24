@@ -1,45 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { Product, Review, CommunityPhoto, CustomOrder } from '../types';
-import { PRODUCTS, OFFICIAL_PRICES, formatPrice } from '../data/products';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CustomOrder, OrderStatus, PaymentStatus, DeliveryStatus } from '../types';
+import { formatPrice } from '../data/products';
 import {
-  getDynamicProducts,
-  saveDynamicProduct,
-  deleteDynamicProduct,
-  getAllReviews,
-  updateReviewStatus,
-  deleteReview,
-  getAllCommunityPhotos,
-  updateCommunityPhotoStatus,
-  deleteCommunityPhoto,
   getAllCustomOrders,
-  updateCustomOrderStatus,
   deleteCustomOrder,
+  updateOrderFulfillment,
+  updateOrderFinancialRecord,
   exportAllDataAsJSON,
   importDataFromJSON,
 } from '../services/db';
+import { updateOrderStatusAPI } from '../services/api';
 import { changeAdminPin, logoutAdmin } from '../services/adminAuth';
 import { useTheme } from '../context/ThemeContext';
 import { CFLogo } from './CFLogo';
+import { FinancialManager } from './FinancialManager';
+import { CourierDeliveryModal } from './CourierDeliveryModal';
+import { getGeneralWhatsAppUrl } from '../config/whatsapp';
 import {
   X,
-  Package,
-  PlusCircle,
-  Tag,
-  MessageSquare,
-  Star,
-  KeyRound,
   ShoppingBag,
-  Upload,
-  CheckCircle2,
-  Trash2,
-  Edit3,
-  LogOut,
+  DollarSign,
+  Truck,
+  KeyRound,
   Download,
+  Upload,
+  LogOut,
+  CheckCircle2,
   AlertCircle,
-  Camera,
-  ExternalLink,
-  Ban,
+  Search,
   Filter,
+  Copy,
+  Check,
+  ExternalLink,
+  Trash2,
+  Clock,
+  ShieldCheck,
+  Calendar,
+  Users,
 } from 'lucide-react';
 
 interface AdminPanelModalProps {
@@ -48,18 +45,9 @@ interface AdminPanelModalProps {
   onProductsUpdated?: () => void;
 }
 
-type TabType =
-  | 'products'
-  | 'add-product'
-  | 'prices-legends'
-  | 'pending-reviews'
-  | 'ratings'
-  | 'security'
-  | 'orders'
-  | 'community';
+type TabType = 'orders' | 'finance' | 'courier' | 'security';
 
 interface DeleteConfirmation {
-  type: 'review' | 'photo' | 'product' | 'order';
   id: string;
   title: string;
   subtitle?: string;
@@ -68,45 +56,27 @@ interface DeleteConfirmation {
 export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   isOpen,
   onClose,
-  onProductsUpdated,
 }) => {
   const { isWhite } = useTheme();
-  const [activeTab, setActiveTab] = useState<TabType>('products');
+  const [activeTab, setActiveTab] = useState<TabType>('orders');
 
-  // Data states
-  const [dynamicProducts, setDynamicProducts] = useState<Product[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [communityPhotos, setCommunityPhotos] = useState<CommunityPhoto[]>([]);
+  // Orders data
   const [customOrders, setCustomOrders] = useState<CustomOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  // Filters
-  const [reviewFilter, setReviewFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
-  const [photoFilter, setPhotoFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  // Filters for "Pedidos e Entregas"
+  const [searchTerm, setSearchTerm] = useState('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | OrderStatus>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | PaymentStatus>('all');
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<'all' | DeliveryStatus>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
 
-  // Explicit in-app confirmation state (never relies on blocked window.confirm)
+  // Deletion modal state
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
 
-  // Form: Add New Product / Photos
-  const [newProdName, setNewProdName] = useState('');
-  const [newProdDesc, setNewProdDesc] = useState('');
-  const [newProdColor, setNewProdColor] = useState<'black' | 'white' | 'charcoal'>('black');
-  const [newProdViewAngle, setNewProdViewAngle] = useState<'front' | 'back' | 'full'>('front');
-  const [newProdServiceType, setNewProdServiceType] = useState<'cf-brand' | 'client-shirt'>('cf-brand');
-  const [newProdPrice, setNewProdPrice] = useState<number>(OFFICIAL_PRICES.cfBrandTee);
-  const [newProdClientPrice, setNewProdClientPrice] = useState<number>(OFFICIAL_PRICES.clientSuppliedTee);
-  const [newProdCategory, setNewProdCategory] = useState<Product['category']>('typography');
-  const [newProdBadge, setNewProdBadge] = useState('NOVO MODELO');
-  const [newProdImageFiles, setNewProdImageFiles] = useState<{ file: File; preview: string }[]>([]);
-  const [newProdPublishStatus, setNewProdPublishStatus] = useState<'published' | 'draft'>('published');
-  const [selectedSizes, setSelectedSizes] = useState<('S' | 'M' | 'L' | 'XL' | 'XXL')[]>([
-    'S',
-    'M',
-    'L',
-    'XL',
-    'XXL',
-  ]);
+  // Courier test modal shortcut
+  const [isCourierModalOpen, setIsCourierModalOpen] = useState(false);
 
   // Security: PIN change form
   const [currentPin, setCurrentPin] = useState('');
@@ -115,8 +85,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [pinChangeError, setPinChangeError] = useState('');
   const [pinChangeSuccess, setPinChangeSuccess] = useState('');
 
-  // Editing existing product state
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  // Copy code feedback map
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMsg({ text, type });
@@ -126,18 +96,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const reloadData = async () => {
     setLoading(true);
     try {
-      const [prods, revs, comms, ords] = await Promise.all([
-        getDynamicProducts(),
-        getAllReviews(),
-        getAllCommunityPhotos(),
-        getAllCustomOrders(),
-      ]);
-      setDynamicProducts(prods);
-      setReviews(revs);
-      setCommunityPhotos(comms);
+      const ords = await getAllCustomOrders();
       setCustomOrders(ords);
     } catch (e) {
-      console.error(e);
+      console.error('Error reloading admin orders:', e);
     } finally {
       setLoading(false);
     }
@@ -149,163 +111,90 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Filtered orders logic
+  const filteredOrders = customOrders.filter((order) => {
+    // 1. Search Query (name, phone, orderNumber, deliveryCode)
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      const matchName = (order.clientName || '').toLowerCase().includes(q);
+      const matchPhone = (order.phone || '').replace(/\s+/g, '').includes(q.replace(/\s+/g, ''));
+      const matchOrderNum = (order.orderNumber || '').toLowerCase().includes(q);
+      const matchCode = (order.deliveryCode || '').toLowerCase().includes(q);
+      const matchId = (order.id || '').toLowerCase().includes(q);
 
-  // Counts for tabs
-  const pendingReviewsCount = reviews.filter((r) => r.status === 'pending').length;
-  const pendingPhotosCount = communityPhotos.filter((p) => p.status === 'pending').length;
-  const pendingOrdersCount = customOrders.filter((o) => o.status === 'novo').length;
-
-  // Combined product list (built-in 12 products + user added dynamic products)
-  const allProductsCombined: Product[] = [...PRODUCTS, ...dynamicProducts];
-
-  // Service type price auto-fill
-  const handleServiceTypeChange = (type: 'cf-brand' | 'client-shirt') => {
-    setNewProdServiceType(type);
-    if (type === 'cf-brand') {
-      setNewProdPrice(OFFICIAL_PRICES.cfBrandTee);
-      setNewProdClientPrice(OFFICIAL_PRICES.clientSuppliedTee);
-    } else {
-      setNewProdPrice(OFFICIAL_PRICES.clientSuppliedTee);
-      setNewProdClientPrice(OFFICIAL_PRICES.clientSuppliedTee);
+      if (!matchName && !matchPhone && !matchOrderNum && !matchCode && !matchId) {
+        return false;
+      }
     }
-  };
 
-  // Image Upload handler for new product with client-side image compression
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    // 2. Order Status Filter
+    if (orderStatusFilter !== 'all') {
+      const currentStatus = order.orderStatus || 'recebido';
+      if (currentStatus !== orderStatusFilter) return false;
+    }
 
-    const fileList = Array.from(files);
-    fileList.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const maxDim = 1200;
-          let width = img.width;
-          let height = img.height;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressed = canvas.toDataURL('image/jpeg', 0.85);
-            setNewProdImageFiles((prev) => [...prev, { file, preview: compressed }]);
-          } else {
-            setNewProdImageFiles((prev) => [
-              ...prev,
-              { file, preview: event.target?.result as string },
-            ]);
-          }
-        };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+    // 3. Payment Status Filter
+    if (paymentStatusFilter !== 'all') {
+      const currentPay = order.paymentStatus || 'por_confirmar';
+      if (currentPay !== paymentStatusFilter) return false;
+    }
+
+    // 4. Delivery Status Filter
+    if (deliveryStatusFilter !== 'all') {
+      const currentDeliv = order.deliveryStatus || 'pendente';
+      if (currentDeliv !== deliveryStatusFilter) return false;
+    }
+
+    // 5. Date Filter
+    if (dateFilter !== 'all' && order.date) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (dateFilter === 'today') {
+        if (order.date !== today) return false;
+      } else if (dateFilter === 'week') {
+        const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+        if (order.date < weekAgo) return false;
+      } else if (dateFilter === 'month') {
+        const monthAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+        if (order.date < monthAgo) return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Similar names detection helper
+  const nameOccurrences = useMemo(() => {
+    const map = new Map<string, number>();
+    customOrders.forEach((o) => {
+      const clean = (o.clientName || '').toLowerCase().trim();
+      if (clean) {
+        map.set(clean, (map.get(clean) || 0) + 1);
+      }
     });
-  };
+    return map;
+  }, [customOrders]);
 
-  const handleRemoveUploadedImage = (index: number) => {
-    setNewProdImageFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Submit new product
-  const handleCreateProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!newProdName.trim()) {
-      showToast('Por favor introduz o nome do modelo.', 'error');
-      return;
+  // Update order status on server & locally
+  const handleUpdateStatus = async (
+    id: string,
+    field: 'orderStatus' | 'paymentStatus' | 'deliveryStatus',
+    value: string
+  ) => {
+    try {
+      await updateOrderStatusAPI(id, { [field]: value });
+      showToast(`Estado atualizado com sucesso.`);
+      await reloadData();
+    } catch (err: any) {
+      showToast(err.message || 'Erro ao atualizar estado no servidor.', 'error');
     }
-    if (!newProdDesc.trim()) {
-      showToast('Por favor introduz a descrição do produto.', 'error');
-      return;
-    }
-    if (newProdImageFiles.length === 0) {
-      showToast('Por favor carrega pelo menos uma fotografia real do modelo.', 'error');
-      return;
-    }
-
-    const newProdId = `cf-prod-${Date.now()}`;
-    const product: Product = {
-      id: newProdId,
-      name: newProdName.trim().toUpperCase(),
-      category: newProdCategory,
-      categoryLabel:
-        newProdCategory === 'african-art'
-          ? 'Arte Africana'
-          : newProdCategory === 'tribal'
-          ? 'Emblema Tribal'
-          : newProdCategory === 'typography'
-          ? 'Frases & Letras'
-          : newProdCategory === 'gothic'
-          ? 'Gótico & Sagrado'
-          : 'Streetwear de Autor',
-      priceKz: Number(newProdPrice) || OFFICIAL_PRICES.cfBrandTee,
-      clientShirtPriceKz: Number(newProdClientPrice) || OFFICIAL_PRICES.clientSuppliedTee,
-      defaultColor: newProdColor,
-      color: newProdColor === 'black' ? 'Preto' : newProdColor === 'white' ? 'Branco' : 'Grafite',
-      description: newProdDesc.trim(),
-      story: `Modelo exclusivo da coleção CF lançado sob rigorosos padrões de serigrafia e estética streetwear.`,
-      details: [
-        'Algodão premium penteado de corte streetwear confortável',
-        'Estampa serigráfica de alta definição',
-        'Logótipo oficial CF com coroa no peito esquerdo',
-        'Gola canelada e costura reforçada de ombro a ombro',
-      ],
-      availableSizes: selectedSizes,
-      stockStatus: { S: 10, M: 15, L: 20, XL: 15, XXL: 8 },
-      image: newProdImageFiles[0].preview,
-      badge: newProdBadge || 'NOVO MODELO',
-      status: newProdPublishStatus,
-      viewAngle: newProdViewAngle,
-      isCustomUpload: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    await saveDynamicProduct(product);
-    showToast(`Modelo "${product.name}" guardado com sucesso!`);
-
-    // Reset form
-    setNewProdName('');
-    setNewProdDesc('');
-    setNewProdImageFiles([]);
-    setNewProdBadge('NOVO MODELO');
-    await reloadData();
-    onProductsUpdated?.();
-    setActiveTab('products');
   };
 
   // Execution of confirmed deletion
   const executeConfirmedDelete = async () => {
     if (!deleteConfirmation) return;
-    const { type, id, title } = deleteConfirmation;
-
     try {
-      if (type === 'review') {
-        await deleteReview(id);
-        showToast(`Comentário de "${title}" eliminado definitivamente.`);
-      } else if (type === 'photo') {
-        await deleteCommunityPhoto(id);
-        showToast(`Fotografia de "${title}" eliminada definitivamente.`);
-      } else if (type === 'product') {
-        await deleteDynamicProduct(id);
-        showToast(`Produto "${title}" eliminado.`);
-        onProductsUpdated?.();
-      } else if (type === 'order') {
-        await deleteCustomOrder(id);
-        showToast(`Pedido de "${title}" eliminado.`);
-      }
+      await deleteCustomOrder(deleteConfirmation.id);
+      showToast(`Pedido "${deleteConfirmation.title}" eliminado.`);
       setDeleteConfirmation(null);
       await reloadData();
     } catch (err: any) {
@@ -313,47 +202,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
-  // Save quick price / legend edit
-  const handleSaveProductEdit = async () => {
-    if (!editingProduct) return;
-    await saveDynamicProduct(editingProduct);
-    showToast(`Produto "${editingProduct.name}" atualizado.`);
-    setEditingProduct(null);
-    await reloadData();
-    onProductsUpdated?.();
-  };
-
-  // Review moderation
-  const handleApproveReview = async (id: string) => {
-    await updateReviewStatus(id, 'approved');
-    showToast('Comentário aprovado e publicado publicamente!');
-    await reloadData();
-  };
-
-  const handleRejectReview = async (id: string) => {
-    await updateReviewStatus(id, 'rejected');
-    showToast('Comentário rejeitado (não será exibido no site).');
-    await reloadData();
-  };
-
-  // Community photo moderation
-  const handleApprovePhoto = async (id: string) => {
-    await updateCommunityPhotoStatus(id, 'approved');
-    showToast('Fotografia do cliente aprovada e publicada na Comunidade CF!');
-    await reloadData();
-  };
-
-  const handleRejectPhoto = async (id: string) => {
-    await updateCommunityPhotoStatus(id, 'rejected');
-    showToast('Fotografia rejeitada (não será exibida no site).');
-    await reloadData();
-  };
-
-  // Orders status update
-  const handleOrderStatusChange = async (id: string, status: CustomOrder['status']) => {
-    await updateCustomOrderStatus(id, status);
-    showToast(`Estado do pedido atualizado para "${status}".`);
-    await reloadData();
+  // Copy code handler
+  const handleCopyCode = (id: string, code: string) => {
+    try {
+      navigator.clipboard.writeText(code);
+      setCopiedCodeId(id);
+      setTimeout(() => setCopiedCodeId(null), 2000);
+    } catch {}
   };
 
   // Security: PIN change submit
@@ -374,41 +229,42 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
     const res = await changeAdminPin(currentPin, newPin);
     if (res.success) {
-      setPinChangeSuccess('Código de acesso atualizado com sucesso para ' + newPin + '!');
+      setPinChangeSuccess('Código de acesso atualizado com sucesso!');
       setCurrentPin('');
       setNewPin('');
       setConfirmPin('');
-      showToast('Novo código de acesso ativado com sucesso!');
+      showToast('Código de acesso alterado com sucesso!');
     } else {
-      setPinChangeError(res.error || 'Erro ao alterar código.');
+      setPinChangeError(res.error || 'Código atual incorreto.');
     }
   };
 
-  // Export JSON Backup
+  // Backup handlers
   const handleExportBackup = async () => {
-    const jsonStr = await exportAllDataAsJSON();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `CF_backup_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Cópia de segurança JSON descarregada com sucesso!');
+    try {
+      const json = await exportAllDataAsJSON();
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cf-brand-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Backup exportado com sucesso!');
+    } catch (e) {
+      showToast('Erro ao exportar backup', 'error');
+    }
   };
 
-  // Import JSON Backup
   const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = async () => {
       const res = await importDataFromJSON(reader.result as string);
       if (res.success) {
         showToast(res.message);
         await reloadData();
-        onProductsUpdated?.();
       } else {
         showToast(res.message, 'error');
       }
@@ -421,17 +277,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     onClose();
   };
 
-  // Filtered reviews
-  const filteredReviews = reviews.filter((r) => {
-    if (reviewFilter === 'all') return true;
-    return r.status === reviewFilter;
-  });
-
-  // Filtered community photos
-  const filteredPhotos = communityPhotos.filter((p) => {
-    if (photoFilter === 'all') return true;
-    return p.status === photoFilter;
-  });
+  if (!isOpen) return null;
 
   return (
     <div
@@ -458,11 +304,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   PAINEL ADMINISTRATIVO CF
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-bold uppercase">
-                  AUTENTICADO
+                  SESSÃO SEGURA
                 </span>
               </div>
               <p className="text-[10px] sm:text-[11px] font-mono text-zinc-500 hidden sm:block">
-                Moderação em tempo real &bull; Exclusão segura permanente &bull; Gestão de catálogo
+                Pedidos &bull; Confirmação de Entregas &bull; Gestão Financeira &bull; Segurança
               </p>
             </div>
           </div>
@@ -518,7 +364,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           </div>
         )}
 
-        {/* Dedicated Confirmation Modal for Deletions */}
+        {/* Confirmation Modal for Order Deletion */}
         {deleteConfirmation && (
           <div className="absolute inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
             <div
@@ -529,12 +375,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               <div className="flex items-center gap-3 text-red-500">
                 <AlertCircle className="w-6 h-6 shrink-0" />
                 <h4 className="font-street text-lg font-bold uppercase tracking-wider">
-                  Confirmar Eliminação Definitiva
+                  Confirmar Eliminação do Pedido
                 </h4>
               </div>
 
               <p className="text-xs font-mono text-zinc-400 leading-relaxed">
-                Tens a certeza de que desejas eliminar permanentemente{' '}
+                Tens a certeza de que desejas eliminar permanentemente o pedido de{' '}
                 <strong className={isWhite ? 'text-black' : 'text-white'}>
                   &quot;{deleteConfirmation.title}&quot;
                 </strong>
@@ -546,10 +392,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   {deleteConfirmation.subtitle}
                 </p>
               )}
-
-              <p className="text-[11px] font-mono text-amber-400">
-                &bull; Esta ação apagará o registo do armazenamento e, caso esteja público no site, deixará de ser exibido imediatamente.
-              </p>
 
               <div className="pt-3 flex items-center justify-end gap-3 border-t border-zinc-800">
                 <button
@@ -572,7 +414,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           </div>
         )}
 
-        {/* Main Layout: Sidebar Tabs + Content Area */}
+        {/* Main Layout: Sidebar Navigation + Content Area */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Navigation Sidebar */}
           <aside
@@ -580,172 +422,84 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               isWhite ? 'bg-white/80 border-zinc-200' : 'bg-black/60 border-zinc-800'
             }`}
           >
-            <button
-              type="button"
-              onClick={() => setActiveTab('products')}
-              className={`whitespace-nowrap px-3 py-2 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
-                activeTab === 'products'
-                  ? isWhite
-                    ? 'bg-black text-white font-bold'
-                    : 'bg-white text-black font-bold'
-                  : isWhite
-                  ? 'text-zinc-700 hover:bg-zinc-100'
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 shrink-0" />
-                <span>1. Gerir Produtos</span>
-              </div>
-              <span className="text-[10px] font-bold opacity-70 ml-2">
-                ({allProductsCombined.length})
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('add-product')}
-              className={`whitespace-nowrap px-3 py-2 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
-                activeTab === 'add-product'
-                  ? isWhite
-                    ? 'bg-black text-white font-bold'
-                    : 'bg-white text-black font-bold'
-                  : isWhite
-                  ? 'text-zinc-700 hover:bg-zinc-100'
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <PlusCircle className="w-4 h-4 shrink-0" />
-                <span>2. Nova T-shirt / Foto</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('prices-legends')}
-              className={`whitespace-nowrap px-3 py-2 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
-                activeTab === 'prices-legends'
-                  ? isWhite
-                    ? 'bg-black text-white font-bold'
-                    : 'bg-white text-black font-bold'
-                  : isWhite
-                  ? 'text-zinc-700 hover:bg-zinc-100'
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 shrink-0" />
-                <span>3. Legendas & Preços</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('pending-reviews')}
-              className={`whitespace-nowrap px-3 py-2 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
-                activeTab === 'pending-reviews'
-                  ? isWhite
-                    ? 'bg-black text-white font-bold'
-                    : 'bg-white text-black font-bold'
-                  : isWhite
-                  ? 'text-zinc-700 hover:bg-zinc-100'
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 shrink-0" />
-                <span>4. Comentários</span>
-              </div>
-              {pendingReviewsCount > 0 ? (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-black font-bold ml-2">
-                  {pendingReviewsCount}
-                </span>
-              ) : (
-                <span className="text-[10px] opacity-70 ml-2">({reviews.length})</span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('ratings')}
-              className={`whitespace-nowrap px-3 py-2 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
-                activeTab === 'ratings'
-                  ? isWhite
-                    ? 'bg-black text-white font-bold'
-                    : 'bg-white text-black font-bold'
-                  : isWhite
-                  ? 'text-zinc-700 hover:bg-zinc-100'
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 shrink-0" />
-                <span>5. Avaliações Site</span>
-              </div>
-              <span className="text-[10px] font-bold opacity-70 ml-2">
-                ({reviews.filter((r) => r.status === 'approved').length})
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('community')}
-              className={`whitespace-nowrap px-3 py-2 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
-                activeTab === 'community'
-                  ? isWhite
-                    ? 'bg-black text-white font-bold'
-                    : 'bg-white text-black font-bold'
-                  : isWhite
-                  ? 'text-zinc-700 hover:bg-zinc-100'
-                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Camera className="w-4 h-4 shrink-0" />
-                <span>Fotos Comunidade</span>
-              </div>
-              {pendingPhotosCount > 0 ? (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500 text-black font-bold ml-2">
-                  {pendingPhotosCount}
-                </span>
-              ) : (
-                <span className="text-[10px] opacity-70 ml-2">({communityPhotos.length})</span>
-              )}
-            </button>
-
+            {/* 1. Pedidos e Entregas */}
             <button
               type="button"
               onClick={() => setActiveTab('orders')}
-              className={`whitespace-nowrap px-3 py-2 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+              className={`whitespace-nowrap px-3 py-2.5 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
                 activeTab === 'orders'
                   ? isWhite
-                    ? 'bg-black text-white font-bold'
-                    : 'bg-white text-black font-bold'
+                    ? 'bg-black text-white font-bold shadow-sm'
+                    : 'bg-white text-black font-bold shadow-sm'
                   : isWhite
                   ? 'text-zinc-700 hover:bg-zinc-100'
                   : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 shrink-0" />
-                <span>7. Pedidos Custom</span>
+                <ShoppingBag className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>1. Pedidos e Entregas</span>
               </div>
-              {pendingOrdersCount > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-500 text-black font-bold ml-2">
-                  {pendingOrdersCount}
-                </span>
-              )}
+              <span className="text-[10px] font-bold opacity-75 ml-2 font-mono">
+                ({customOrders.length})
+              </span>
             </button>
 
+            {/* 2. Gestor Financeiro */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('finance')}
+              className={`whitespace-nowrap px-3 py-2.5 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+                activeTab === 'finance'
+                  ? isWhite
+                    ? 'bg-black text-white font-bold shadow-sm'
+                    : 'bg-white text-black font-bold shadow-sm'
+                  : isWhite
+                  ? 'text-zinc-700 hover:bg-zinc-100'
+                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>2. Gestor Financeiro</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 font-bold font-mono ml-2">
+                TESTE
+              </span>
+            </button>
+
+            {/* 3. Confirmar Entrega (Interface do Entregador) */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('courier')}
+              className={`whitespace-nowrap px-3 py-2.5 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+                activeTab === 'courier'
+                  ? isWhite
+                    ? 'bg-black text-white font-bold shadow-sm'
+                    : 'bg-white text-black font-bold shadow-sm'
+                  : isWhite
+                  ? 'text-zinc-700 hover:bg-zinc-100'
+                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Truck className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>3. Confirmar Entrega</span>
+              </div>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">
+                CÓDIGO
+              </span>
+            </button>
+
+            {/* 4. Código de Acesso */}
             <button
               type="button"
               onClick={() => setActiveTab('security')}
-              className={`whitespace-nowrap px-3 py-2 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
+              className={`whitespace-nowrap px-3 py-2.5 rounded text-left text-xs font-mono uppercase tracking-wider flex items-center justify-between transition-all cursor-pointer ${
                 activeTab === 'security'
                   ? isWhite
-                    ? 'bg-black text-white font-bold'
-                    : 'bg-white text-black font-bold'
+                    ? 'bg-black text-white font-bold shadow-sm'
+                    : 'bg-white text-black font-bold shadow-sm'
                   : isWhite
                   ? 'text-zinc-700 hover:bg-zinc-100'
                   : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
@@ -753,7 +507,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             >
               <div className="flex items-center gap-2">
                 <KeyRound className="w-4 h-4 shrink-0" />
-                <span>6. Código Acesso</span>
+                <span>4. Código de Acesso</span>
               </div>
             </button>
 
@@ -773,7 +527,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               </button>
 
               <label
-                className={`w-full py-2 px-3 text-[11px] font-mono uppercase tracking-wider rounded border flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center ${
+                className={`w-full py-2 px-3 text-[11px] font-mono uppercase tracking-wider rounded border flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   isWhite
                     ? 'border-zinc-300 text-zinc-700 hover:bg-zinc-100'
                     : 'border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-white'
@@ -783,1162 +537,482 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 <span>Importar Backup</span>
                 <input
                   type="file"
-                  accept=".json"
+                  accept="application/json"
                   onChange={handleImportBackup}
                   className="hidden"
                 />
               </label>
+
+              <div className="p-2.5 rounded bg-zinc-900/40 border border-zinc-800/60 text-[10px] font-mono text-zinc-500 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span>Backend Servidor:</span>
+                  <strong className="text-emerald-400">Ativo</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Base de Dados:</span>
+                  <span className="text-zinc-400">data/orders.json</span>
+                </div>
+              </div>
             </div>
           </aside>
 
-          {/* Tab Content Body */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-            {/* TAB 1: GERIR PRODUTOS */}
-            {activeTab === 'products' && (
+          {/* Main Content Area */}
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+            {/* TAB 1: PEDIDOS E ENTREGAS */}
+            {activeTab === 'orders' && (
               <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-zinc-800/50 gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-800/50">
                   <div>
-                    <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider">
-                      Gerir Produtos e Coleção CF
+                    <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider flex items-center gap-2">
+                      <span>Pedidos e Entregas</span>
+                      <span className="text-xs font-mono text-zinc-500">
+                        ({filteredOrders.length} de {customOrders.length})
+                      </span>
                     </h3>
                     <p className="text-xs font-mono text-zinc-500">
-                      Total: {allProductsCombined.length} modelos configurados ({PRODUCTS.length} oficiais + {dynamicProducts.length} adicionados pelo painel)
+                      Consulta detalhada, códigos de confirmação exclusivos e controlo independente de estados.
                     </p>
                   </div>
+
                   <button
                     type="button"
-                    onClick={() => setActiveTab('add-product')}
-                    className={`px-4 py-2 font-mono text-xs uppercase font-bold tracking-wider rounded flex items-center gap-2 cursor-pointer transition-all self-start sm:self-auto ${
-                      isWhite
-                        ? 'bg-black text-white hover:bg-zinc-800'
-                        : 'bg-white text-black hover:bg-zinc-200'
-                    }`}
+                    onClick={() => setIsCourierModalOpen(true)}
+                    className="px-3.5 py-2 rounded text-xs font-mono uppercase font-bold tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
                   >
-                    <PlusCircle className="w-4 h-4" />
-                    <span>Adicionar T-shirt</span>
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>Abrir Simulador do Entregador</span>
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {allProductsCombined.map((product) => {
-                    const isDynamic = dynamicProducts.some((p) => p.id === product.id);
-                    return (
-                      <div
-                        key={product.id}
-                        className={`p-4 rounded-lg border transition-all flex flex-col justify-between ${
-                          isWhite ? 'bg-white border-zinc-200 shadow-xs' : 'bg-zinc-900/60 border-zinc-800'
-                        }`}
-                      >
-                        <div>
-                          <div className="relative aspect-square w-full rounded overflow-hidden bg-black mb-3">
-                            <img
-                              src={product.image}
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                            />
-                            {product.badge && (
-                              <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[9px] font-mono tracking-widest bg-black/80 text-white border border-white/20 uppercase font-bold">
-                                {product.badge}
-                              </span>
-                            )}
-                            <span
-                              className={`absolute bottom-2 right-2 px-2 py-0.5 rounded text-[9px] font-mono tracking-widest uppercase font-bold ${
-                                isDynamic
-                                  ? 'bg-emerald-500 text-black'
-                                  : 'bg-zinc-800 text-zinc-300'
-                              }`}
-                            >
-                              {isDynamic ? 'Painel Admin' : 'Original CF'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500 mb-1">
-                            <span>{product.categoryLabel}</span>
-                            <span>{product.color || 'Preto'}</span>
-                          </div>
-
-                          <h4 className="font-street text-base font-bold uppercase tracking-tight line-clamp-1">
-                            {product.name}
-                          </h4>
-
-                          <p className="text-xs text-zinc-500 line-clamp-2 mt-1 leading-relaxed">
-                            {product.description}
-                          </p>
-
-                          <div className="mt-3 pt-2 border-t border-zinc-800/40 flex items-center justify-between">
-                            <div>
-                              <span className="text-[10px] font-mono uppercase block text-zinc-500">
-                                Preço CF
-                              </span>
-                              <span className="font-street font-bold text-sm">
-                                {formatPrice(product.priceKz)}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-[10px] font-mono uppercase block text-zinc-500">
-                                C/ T-shirt Cliente
-                              </span>
-                              <span className="font-street font-bold text-sm text-zinc-400">
-                                {formatPrice(product.clientShirtPriceKz || 4000)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card Actions */}
-                        <div className="mt-4 pt-3 border-t border-zinc-800/40 flex items-center justify-between gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingProduct(product);
-                              setActiveTab('prices-legends');
-                            }}
-                            className={`flex-1 py-1.5 rounded text-[11px] font-mono uppercase tracking-wider border flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-                              isWhite
-                                ? 'border-zinc-300 hover:bg-zinc-100 text-zinc-700'
-                                : 'border-zinc-800 hover:bg-zinc-800 text-zinc-300'
-                            }`}
-                          >
-                            <Edit3 className="w-3 h-3" />
-                            <span>Editar</span>
-                          </button>
-
-                          {isDynamic && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDeleteConfirmation({
-                                  type: 'product',
-                                  id: product.id,
-                                  title: product.name,
-                                  subtitle: `Categoria: ${product.categoryLabel} • Preço: ${formatPrice(product.priceKz)}`,
-                                })
-                              }
-                              className="py-1.5 px-3 rounded text-[11px] font-mono text-red-500 hover:bg-red-500/10 border border-red-500/20 transition-colors cursor-pointer"
-                              title="Eliminar produto do painel"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: ADICIONAR NOVAS FOTOGRAFIAS E T-SHIRTS */}
-            {activeTab === 'add-product' && (
-              <div className="max-w-3xl space-y-6">
-                <div className="pb-4 border-b border-zinc-800/50">
-                  <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider">
-                    Adicionar Nova T-shirt ao Site
-                  </h3>
-                  <p className="text-xs font-mono text-zinc-500">
-                    Carrega fotografias reais, preenche os detalhes e publica diretamente na galeria e na coleção sem tocar no código.
-                  </p>
-                </div>
-
-                <form onSubmit={handleCreateProduct} className="space-y-5">
-                  {/* Image Upload Area */}
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider mb-2 font-bold">
-                      Fotografias Reais do Modelo *
-                    </label>
-                    <div
-                      className={`border-2 border-dashed p-6 rounded-lg text-center transition-colors ${
-                        isWhite
-                          ? 'border-zinc-300 hover:border-black bg-white'
-                          : 'border-zinc-800 hover:border-zinc-500 bg-zinc-900/40'
-                      }`}
-                    >
-                      {newProdImageFiles.length > 0 ? (
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {newProdImageFiles.map((item, idx) => (
-                              <div key={idx} className="relative aspect-square rounded overflow-hidden border border-zinc-700 group">
-                                <img
-                                  src={item.preview}
-                                  alt={`Upload preview ${idx}`}
-                                  className="w-full h-full object-cover"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveUploadedImage(idx)}
-                                  className="absolute top-1 right-1 p-1 rounded-full bg-black/80 text-white hover:bg-red-600 transition-colors cursor-pointer"
-                                  title="Remover fotografia"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                                <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-[9px] font-mono text-white">
-                                  Foto #{idx + 1}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                          <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-zinc-700 text-xs font-mono cursor-pointer hover:bg-zinc-800">
-                            <PlusCircle className="w-3.5 h-3.5" />
-                            <span>Adicionar mais fotos</span>
-                            <input
-                              type="file"
-                              accept="image/png,image/jpeg,image/webp"
-                              multiple
-                              onChange={handleImageUpload}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
-                      ) : (
-                        <label className="cursor-pointer flex flex-col items-center">
-                          <Upload className="w-8 h-8 mb-2 text-zinc-400" />
-                          <span className="text-xs font-mono uppercase font-bold tracking-wider">
-                            Clica para carregar fotografias (PNG, JPG, WEBP)
-                          </span>
-                          <span className="text-[11px] font-mono text-zinc-500 mt-1">
-                            Utiliza exclusivamente as fotografias reais das T-shirts. Suporta múltiplos ficheiros.
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            multiple
-                            onChange={handleImageUpload}
-                            className="hidden"
-                          />
-                        </label>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Model Name */}
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider mb-1 font-bold">
-                      Nome do Modelo *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={newProdName}
-                      onChange={(e) => setNewProdName(e.target.value)}
-                      placeholder="Ex: GUERREIRO DE LUANDA • EDIÇÃO ESPECIAL"
-                      className={`w-full px-4 py-2.5 text-sm rounded border focus:outline-none font-street tracking-wide ${
-                        isWhite
-                          ? 'bg-white border-zinc-300 focus:border-black text-black'
-                          : 'bg-zinc-900 border-zinc-800 focus:border-white text-white'
-                      }`}
-                    />
-                  </div>
-
-                  {/* Description / Legend */}
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider mb-1 font-bold">
-                      Legenda / Descrição do Produto *
-                    </label>
-                    <textarea
-                      rows={3}
-                      required
-                      value={newProdDesc}
-                      onChange={(e) => setNewProdDesc(e.target.value)}
-                      placeholder="Descreve os detalhes da estampa, inspiração, acabamento e posicionamento do logótipo CF..."
-                      className={`w-full px-4 py-2.5 text-sm rounded border focus:outline-none ${
-                        isWhite
-                          ? 'bg-white border-zinc-300 focus:border-black text-black'
-                          : 'bg-zinc-900 border-zinc-800 focus:border-white text-white'
-                      }`}
-                    />
-                  </div>
-
-                  {/* Product Details Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* Color */}
-                    <div>
-                      <label className="block text-xs font-mono uppercase tracking-wider mb-1 font-bold">
-                        Cor da T-shirt
-                      </label>
-                      <select
-                        value={newProdColor}
-                        onChange={(e) => setNewProdColor(e.target.value as any)}
-                        className={`w-full px-3 py-2 text-xs rounded border focus:outline-none ${
-                          isWhite
-                            ? 'bg-white border-zinc-300 focus:border-black text-black'
-                            : 'bg-zinc-900 border-zinc-800 focus:border-white text-white'
-                        }`}
-                      >
-                        <option value="black">Preto Clássico</option>
-                        <option value="white">Branco Puro</option>
-                        <option value="charcoal">Grafite Escuro</option>
-                      </select>
-                    </div>
-
-                    {/* View Angle */}
-                    <div>
-                      <label className="block text-xs font-mono uppercase tracking-wider mb-1 font-bold">
-                        Ângulo da Fotografia
-                      </label>
-                      <select
-                        value={newProdViewAngle}
-                        onChange={(e) => setNewProdViewAngle(e.target.value as any)}
-                        className={`w-full px-3 py-2 text-xs rounded border focus:outline-none ${
-                          isWhite
-                            ? 'bg-white border-zinc-300 focus:border-black text-black'
-                            : 'bg-zinc-900 border-zinc-800 focus:border-white text-white'
-                        }`}
-                      >
-                        <option value="front">Vista Frontal (Frente)</option>
-                        <option value="back">Vista Traseira (Costas)</option>
-                        <option value="full">Vista Completa (Frente & Costas)</option>
-                      </select>
-                    </div>
-
-                    {/* Category */}
-                    <div>
-                      <label className="block text-xs font-mono uppercase tracking-wider mb-1 font-bold">
-                        Categoria da Coleção
-                      </label>
-                      <select
-                        value={newProdCategory}
-                        onChange={(e) => setNewProdCategory(e.target.value as any)}
-                        className={`w-full px-3 py-2 text-xs rounded border focus:outline-none ${
-                          isWhite
-                            ? 'bg-white border-zinc-300 focus:border-black text-black'
-                            : 'bg-zinc-900 border-zinc-800 focus:border-white text-white'
-                        }`}
-                      >
-                        <option value="african-art">Arte Africana</option>
-                        <option value="tribal">Emblemas Tribais</option>
-                        <option value="typography">Frases & Tipografia</option>
-                        <option value="gothic">Gótico & Sagrado</option>
-                        <option value="custom">Personalizado</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Service & Official Price Rules */}
-                  <div className="p-4 rounded-lg border border-zinc-800/60 bg-zinc-900/30 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono uppercase font-bold tracking-wider">
-                        Regra de Preços Oficiais da Marca CF
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => handleServiceTypeChange('cf-brand')}
-                        className={`p-3 rounded border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                          newProdServiceType === 'cf-brand'
-                            ? isWhite
-                              ? 'bg-white border-black text-black shadow-xs ring-1 ring-black'
-                              : 'bg-zinc-900 border-white text-white'
-                            : isWhite
-                            ? 'bg-zinc-100 border-zinc-300 text-zinc-600'
-                            : 'bg-black border-zinc-800 text-zinc-400'
-                        }`}
-                      >
-                        <div>
-                          <span className="font-street font-bold text-xs uppercase block">
-                            T-SHIRT MARCA CF
-                          </span>
-                          <span className="text-[10px] font-mono text-zinc-400">
-                            Algodão 240g fornecido pela marca
-                          </span>
-                        </div>
-                        <span className="font-street text-base font-bold mt-2">
-                          6.000 Kz
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleServiceTypeChange('client-shirt')}
-                        className={`p-3 rounded border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                          newProdServiceType === 'client-shirt'
-                            ? isWhite
-                              ? 'bg-white border-black text-black shadow-xs ring-1 ring-black'
-                              : 'bg-zinc-900 border-white text-white'
-                            : isWhite
-                            ? 'bg-zinc-100 border-zinc-300 text-zinc-600'
-                            : 'bg-black border-zinc-800 text-zinc-400'
-                        }`}
-                      >
-                        <div>
-                          <span className="font-street font-bold text-xs uppercase block">
-                            T-SHIRT FORNECIDA PELO CLIENTE
-                          </span>
-                          <span className="text-[10px] font-mono text-zinc-400">
-                            Apenas personalização / estampa
-                          </span>
-                        </div>
-                        <span className="font-street text-base font-bold mt-2">
-                          4.000 Kz
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Submit CTA */}
-                  <div className="pt-4 border-t border-zinc-800/40 flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('products')}
-                      className={`px-4 py-2.5 font-mono text-xs uppercase tracking-wider rounded border transition-colors cursor-pointer ${
-                        isWhite
-                          ? 'border-zinc-300 text-zinc-700 hover:bg-zinc-100'
-                          : 'border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-white'
-                      }`}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className={`px-6 py-2.5 font-street text-sm font-bold uppercase tracking-wider rounded flex items-center gap-2 cursor-pointer transition-all shadow-lg ${
-                        isWhite
-                          ? 'bg-black text-white hover:bg-zinc-800'
-                          : 'bg-white text-black hover:bg-zinc-200'
-                      }`}
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>{newProdPublishStatus === 'published' ? 'Publicar no Site' : 'Guardar Rascunho'}</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* TAB 3: GERIR LEGENDAS E PREÇOS */}
-            {activeTab === 'prices-legends' && (
-              <div className="space-y-6">
-                <div className="pb-4 border-b border-zinc-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider">
-                      Gerir Legendas e Preços dos Modelos
-                    </h3>
-                    <p className="text-xs font-mono text-zinc-500">
-                      Atualiza com rapidez preços e descrições mantendo os valores oficiais da CF (6.000 Kz / 4.000 Kz).
-                    </p>
-                  </div>
-                </div>
-
-                {editingProduct ? (
-                  <div className={`p-6 rounded-lg border max-w-2xl space-y-4 ${
-                    isWhite ? 'bg-white border-zinc-300' : 'bg-zinc-900 border-zinc-700'
-                  }`}>
-                    <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-                      <span className="font-street text-lg font-bold uppercase">
-                        A Editar: {editingProduct.name}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setEditingProduct(null)}
-                        className="text-xs font-mono text-zinc-400 hover:text-white underline cursor-pointer"
-                      >
-                        Fechar
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-mono uppercase mb-1">Nome</label>
+                {/* Search & Filter Controls */}
+                <div
+                  className={`p-4 rounded-xl border space-y-3 ${
+                    isWhite ? 'bg-zinc-100/90 border-zinc-200' : 'bg-zinc-900/40 border-zinc-800'
+                  }`}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                    {/* Search Field */}
+                    <div className="sm:col-span-6 relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                       <input
                         type="text"
-                        value={editingProduct.name}
-                        onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                        className={`w-full px-3 py-2 text-xs rounded border ${
-                          isWhite ? 'bg-zinc-100 border-zinc-300 text-black' : 'bg-black border-zinc-800 text-white'
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Pesquisar por cliente, telefone, nº do pedido ou código..."
+                        className={`w-full pl-9 pr-3 py-2 text-xs rounded border focus:outline-none ${
+                          isWhite
+                            ? 'bg-white border-zinc-300 focus:border-black text-black'
+                            : 'bg-zinc-950 border-zinc-800 focus:border-white text-white'
                         }`}
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-mono uppercase mb-1">Legenda / Descrição</label>
-                      <textarea
-                        rows={3}
-                        value={editingProduct.description}
-                        onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                        className={`w-full px-3 py-2 text-xs rounded border ${
-                          isWhite ? 'bg-zinc-100 border-zinc-300 text-black' : 'bg-black border-zinc-800 text-white'
-                        }`}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-mono uppercase mb-1">Preço T-shirt CF (Kz)</label>
-                        <input
-                          type="number"
-                          value={editingProduct.priceKz}
-                          onChange={(e) => setEditingProduct({ ...editingProduct, priceKz: Number(e.target.value) })}
-                          className={`w-full px-3 py-2 text-xs rounded border ${
-                            isWhite ? 'bg-zinc-100 border-zinc-300 text-black' : 'bg-black border-zinc-800 text-white'
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-mono uppercase mb-1">Preço T-shirt Cliente (Kz)</label>
-                        <input
-                          type="number"
-                          value={editingProduct.clientShirtPriceKz || 4000}
-                          onChange={(e) => setEditingProduct({ ...editingProduct, clientShirtPriceKz: Number(e.target.value) })}
-                          className={`w-full px-3 py-2 text-xs rounded border ${
-                            isWhite ? 'bg-zinc-100 border-zinc-300 text-black' : 'bg-black border-zinc-800 text-white'
-                          }`}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-2 flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditingProduct(null)}
-                        className="px-4 py-2 text-xs font-mono uppercase rounded border border-zinc-700 cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveProductEdit}
-                        className="px-5 py-2 text-xs font-mono uppercase font-bold bg-white text-black rounded cursor-pointer"
-                      >
-                        Guardar Alterações
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {allProductsCombined.map((product) => (
-                      <div
-                        key={product.id}
-                        className={`p-4 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                          isWhite ? 'bg-white border-zinc-200' : 'bg-zinc-900/40 border-zinc-800'
+                    {/* Period Filter */}
+                    <div className="sm:col-span-3">
+                      <select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value as any)}
+                        className={`w-full px-2.5 py-2 text-xs rounded border font-mono focus:outline-none ${
+                          isWhite
+                            ? 'bg-white border-zinc-300 text-black'
+                            : 'bg-zinc-950 border-zinc-800 text-white'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-14 h-14 object-cover rounded bg-black shrink-0"
-                          />
-                          <div>
-                            <span className="font-street font-bold text-sm uppercase block">
-                              {product.name}
-                            </span>
-                            <span className="text-xs font-mono text-zinc-500 line-clamp-1 max-w-md">
-                              {product.description}
-                            </span>
-                          </div>
-                        </div>
+                        <option value="all">Todas as Datas</option>
+                        <option value="today">Hoje</option>
+                        <option value="week">Últimos 7 Dias</option>
+                        <option value="month">Últimos 30 Dias</option>
+                      </select>
+                    </div>
 
-                        <div className="flex items-center gap-4 sm:gap-6 self-end sm:self-auto">
-                          <div className="text-right">
-                            <span className="text-[10px] font-mono text-zinc-400 block uppercase">
-                              Preço T-shirt CF
-                            </span>
-                            <span className="font-street font-bold text-sm">
-                              {formatPrice(product.priceKz)}
-                            </span>
-                          </div>
-
-                          <div className="text-right">
-                            <span className="text-[10px] font-mono text-zinc-400 block uppercase">
-                              C/ T-shirt Cliente
-                            </span>
-                            <span className="font-street font-bold text-sm text-zinc-400">
-                              {formatPrice(product.clientShirtPriceKz || 4000)}
-                            </span>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setEditingProduct(product)}
-                            className="px-3 py-1.5 rounded border text-xs font-mono uppercase hover:bg-zinc-800 cursor-pointer"
-                          >
-                            Editar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 4: COMENTÁRIOS E CRÍTICAS PENDENTES */}
-            {activeTab === 'pending-reviews' && (
-              <div className="space-y-6">
-                <div className="pb-4 border-b border-zinc-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider flex items-center gap-2">
-                      <span>Moderação de Comentários</span>
-                      {pendingReviewsCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-amber-500 text-black font-bold">
-                          {pendingReviewsCount} Pendente{pendingReviewsCount > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-xs font-mono text-zinc-500">
-                      Consulta, aprova, rejeita ou elimina comentários definitivamente do sistema.
-                    </p>
-                  </div>
-
-                  {/* Status Filter Pills */}
-                  <div className="flex items-center gap-1.5 p-1 rounded-lg border border-zinc-800 bg-zinc-900/60 self-start sm:self-auto text-xs font-mono">
-                    <button
-                      type="button"
-                      onClick={() => setReviewFilter('all')}
-                      className={`px-2.5 py-1 rounded cursor-pointer ${
-                        reviewFilter === 'all' ? 'bg-white text-black font-bold' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Todos ({reviews.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReviewFilter('pending')}
-                      className={`px-2.5 py-1 rounded cursor-pointer ${
-                        reviewFilter === 'pending' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Pendentes ({pendingReviewsCount})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReviewFilter('approved')}
-                      className={`px-2.5 py-1 rounded cursor-pointer ${
-                        reviewFilter === 'approved' ? 'bg-emerald-500 text-black font-bold' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Aprovados ({reviews.filter((r) => r.status === 'approved').length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReviewFilter('rejected')}
-                      className={`px-2.5 py-1 rounded cursor-pointer ${
-                        reviewFilter === 'rejected' ? 'bg-red-500 text-white font-bold' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Rejeitados ({reviews.filter((r) => r.status === 'rejected').length})
-                    </button>
-                  </div>
-                </div>
-
-                {filteredReviews.length === 0 ? (
-                  <div className="p-8 text-center text-xs font-mono text-zinc-500 border border-dashed rounded-lg">
-                    Nenhum comentário encontrado para o filtro selecionado.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredReviews.map((rev) => (
-                      <div
-                        key={rev.id}
-                        className={`p-4 sm:p-5 rounded-lg border transition-all ${
-                          rev.status === 'pending'
-                            ? isWhite
-                              ? 'bg-amber-50 border-amber-300'
-                              : 'bg-amber-950/20 border-amber-500/40'
-                            : rev.status === 'approved'
-                            ? isWhite
-                              ? 'bg-white border-zinc-200'
-                              : 'bg-zinc-900/60 border-zinc-800'
-                            : 'bg-red-950/10 border-red-800/30 opacity-70'
-                        }`}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                            <span className="font-street font-bold text-base uppercase">
-                              {rev.authorName}
-                            </span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 uppercase">
-                              {rev.category}
-                            </span>
-                            <div className="flex text-amber-400">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`w-3.5 h-3.5 ${
-                                    i < rev.rating ? 'fill-current' : 'opacity-20'
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-mono text-zinc-500">{rev.date}</span>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
-                                rev.status === 'approved'
-                                  ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30'
-                                  : rev.status === 'pending'
-                                  ? 'bg-amber-500/10 text-amber-500 border border-amber-500/30'
-                                  : 'bg-red-500/10 text-red-500 border border-red-500/30'
-                              }`}
-                            >
-                              {rev.status === 'approved'
-                                ? 'Público no Site'
-                                : rev.status === 'pending'
-                                ? 'Pendente'
-                                : 'Rejeitado'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <p className="text-sm leading-relaxed mb-4 text-zinc-300 font-sans">
-                          &quot;{rev.comment}&quot;
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-800/40">
-                          {rev.status !== 'approved' && (
-                            <button
-                              type="button"
-                              onClick={() => handleApproveReview(rev.id)}
-                              className="px-3.5 py-1.5 rounded text-xs font-mono uppercase font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Aprovar e Publicar</span>
-                            </button>
-                          )}
-
-                          {rev.status !== 'rejected' && (
-                            <button
-                              type="button"
-                              onClick={() => handleRejectReview(rev.id)}
-                              className="px-3 py-1.5 rounded text-xs font-mono uppercase border border-amber-700/60 text-amber-400 hover:bg-amber-950/40 flex items-center gap-1 transition-colors cursor-pointer"
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                              <span>{rev.status === 'approved' ? 'Despublicar / Rejeitar' : 'Rejeitar'}</span>
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDeleteConfirmation({
-                                type: 'review',
-                                id: rev.id,
-                                title: rev.authorName,
-                                subtitle: `"${rev.comment.slice(0, 100)}..." (${rev.rating} estrelas)`,
-                              })
-                            }
-                            className="px-3 py-1.5 rounded text-xs font-mono uppercase text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer ml-auto flex items-center gap-1 border border-red-500/30"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Eliminar</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 5: AVALIAÇÕES DO SITE */}
-            {activeTab === 'ratings' && (
-              <div className="space-y-6">
-                <div className="pb-4 border-b border-zinc-800/50">
-                  <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider">
-                    Estatísticas e Avaliações Gerais do Site
-                  </h3>
-                  <p className="text-xs font-mono text-zinc-500">
-                    Apenas avaliações aprovadas entram no cálculo da média e na apresentação pública.
-                  </p>
-                </div>
-
-                {/* Score Summary Metrics */}
-                {(() => {
-                  const approved = reviews.filter((r) => r.status === 'approved');
-                  const avg = approved.length > 0
-                    ? (approved.reduce((acc, r) => acc + r.rating, 0) / approved.length).toFixed(1)
-                    : '5.0';
-
-                  const countByStars = [5, 4, 3, 2, 1].map((s) => ({
-                    stars: s,
-                    count: approved.filter((r) => r.rating === s).length,
-                    pct: approved.length > 0 ? (approved.filter((r) => r.rating === s).length / approved.length) * 100 : 0,
-                  }));
-
-                  return (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className={`p-5 rounded-lg border text-center ${
-                          isWhite ? 'bg-white border-zinc-200' : 'bg-zinc-900/60 border-zinc-800'
-                        }`}>
-                          <span className="font-street text-4xl sm:text-5xl font-black block">
-                            {avg}
-                          </span>
-                          <div className="flex justify-center text-amber-400 my-1">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} className="w-4 h-4 fill-current" />
-                            ))}
-                          </div>
-                          <span className="text-[11px] font-mono text-zinc-500 uppercase">
-                            Média Geral Aprovada
-                          </span>
-                        </div>
-
-                        <div className={`p-5 rounded-lg border text-center ${
-                          isWhite ? 'bg-white border-zinc-200' : 'bg-zinc-900/60 border-zinc-800'
-                        }`}>
-                          <span className="font-street text-4xl sm:text-5xl font-black block">
-                            {approved.length}
-                          </span>
-                          <span className="text-[11px] font-mono text-zinc-500 uppercase mt-2 block">
-                            Avaliações Públicas
-                          </span>
-                        </div>
-
-                        <div className={`p-5 rounded-lg border text-center ${
-                          isWhite ? 'bg-white border-zinc-200' : 'bg-zinc-900/60 border-zinc-800'
-                        }`}>
-                          <span className="font-street text-4xl sm:text-5xl font-black text-amber-500 block">
-                            {pendingReviewsCount}
-                          </span>
-                          <span className="text-[11px] font-mono text-zinc-500 uppercase mt-2 block">
-                            Aguardando Moderação
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Distribution breakdown */}
-                      <div className={`p-5 rounded-lg border ${
-                        isWhite ? 'bg-white border-zinc-200' : 'bg-zinc-900/60 border-zinc-800'
-                      }`}>
-                        <h4 className="font-street text-sm font-bold uppercase mb-4 tracking-wider">
-                          Distribuição das Classificações Aprovadas
-                        </h4>
-                        <div className="space-y-2.5">
-                          {countByStars.map((row) => (
-                            <div key={row.stars} className="flex items-center gap-3 text-xs font-mono">
-                              <span className="w-8 flex items-center gap-1 font-bold">
-                                {row.stars} <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                              </span>
-                              <div className="flex-1 h-2 rounded-full bg-zinc-800 overflow-hidden">
-                                <div
-                                  className="h-full bg-white transition-all duration-500"
-                                  style={{ width: `${row.pct}%` }}
-                                />
-                              </div>
-                              <span className="w-16 text-right text-zinc-400">
-                                {row.count} ({row.pct.toFixed(0)}%)
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Quick Moderation Access from Ratings Tab */}
-                      <div className="flex items-center justify-between pt-2">
-                        <span className="text-xs font-mono text-zinc-500">
-                          Pretendes aprovar comentários pendentes ou despublicar avaliações?
-                        </span>
+                    {/* Clear Button */}
+                    <div className="sm:col-span-3 text-right">
+                      {(searchTerm ||
+                        orderStatusFilter !== 'all' ||
+                        paymentStatusFilter !== 'all' ||
+                        deliveryStatusFilter !== 'all' ||
+                        dateFilter !== 'all') && (
                         <button
                           type="button"
-                          onClick={() => setActiveTab('pending-reviews')}
-                          className="px-4 py-2 rounded text-xs font-mono uppercase font-bold border border-zinc-700 hover:bg-zinc-800 cursor-pointer"
+                          onClick={() => {
+                            setSearchTerm('');
+                            setOrderStatusFilter('all');
+                            setPaymentStatusFilter('all');
+                            setDeliveryStatusFilter('all');
+                            setDateFilter('all');
+                          }}
+                          className="px-3 py-2 text-xs font-mono uppercase text-zinc-400 hover:text-white rounded border border-zinc-800 hover:bg-zinc-800 cursor-pointer w-full sm:w-auto"
                         >
-                          Ir para Moderação de Comentários &rarr;
+                          Limpar Filtros
                         </button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* TAB: FOTOS DA COMUNIDADE CF */}
-            {activeTab === 'community' && (
-              <div className="space-y-6">
-                <div className="pb-4 border-b border-zinc-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider flex items-center gap-2">
-                      <span>Fotografias da Comunidade CF</span>
-                      {pendingPhotosCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-amber-500 text-black font-bold">
-                          {pendingPhotosCount} Pendente{pendingPhotosCount > 1 ? 's' : ''}
-                        </span>
                       )}
-                    </h3>
-                    <p className="text-xs font-mono text-zinc-500">
-                      Visualiza, aprova para publicação, rejeita ou elimina fotografias definitivamente.
-                    </p>
+                    </div>
                   </div>
 
-                  {/* Photo Filter Pills */}
-                  <div className="flex items-center gap-1.5 p-1 rounded-lg border border-zinc-800 bg-zinc-900/60 self-start sm:self-auto text-xs font-mono">
-                    <button
-                      type="button"
-                      onClick={() => setPhotoFilter('all')}
-                      className={`px-2.5 py-1 rounded cursor-pointer ${
-                        photoFilter === 'all' ? 'bg-white text-black font-bold' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Todas ({communityPhotos.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPhotoFilter('pending')}
-                      className={`px-2.5 py-1 rounded cursor-pointer ${
-                        photoFilter === 'pending' ? 'bg-amber-500 text-black font-bold' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Pendentes ({pendingPhotosCount})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPhotoFilter('approved')}
-                      className={`px-2.5 py-1 rounded cursor-pointer ${
-                        photoFilter === 'approved' ? 'bg-emerald-500 text-black font-bold' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Aprovadas ({communityPhotos.filter((p) => p.status === 'approved').length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPhotoFilter('rejected')}
-                      className={`px-2.5 py-1 rounded cursor-pointer ${
-                        photoFilter === 'rejected' ? 'bg-red-500 text-white font-bold' : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Rejeitadas ({communityPhotos.filter((p) => p.status === 'rejected').length})
-                    </button>
-                  </div>
-                </div>
-
-                {filteredPhotos.length === 0 ? (
-                  <div className="p-8 text-center text-xs font-mono text-zinc-500 border border-dashed rounded-lg">
-                    Nenhuma fotografia encontrada para o filtro selecionado.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredPhotos.map((photo) => (
-                      <div
-                        key={photo.id}
-                        className={`p-3 rounded-lg border flex flex-col justify-between ${
-                          photo.status === 'pending'
-                            ? 'border-amber-500/50 bg-amber-950/10'
-                            : photo.status === 'approved'
-                            ? isWhite
-                              ? 'bg-white border-zinc-200'
-                              : 'bg-zinc-900/60 border-zinc-800'
-                            : 'border-red-800/40 bg-red-950/10 opacity-70'
+                  {/* Status Pills */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-zinc-800/40 text-xs font-mono">
+                    {/* Order Status */}
+                    <div>
+                      <span className="text-[10px] text-zinc-500 uppercase block mb-1">Estado do Pedido:</span>
+                      <select
+                        value={orderStatusFilter}
+                        onChange={(e) => setOrderStatusFilter(e.target.value as any)}
+                        className={`w-full px-2 py-1.5 text-xs rounded border focus:outline-none ${
+                          isWhite
+                            ? 'bg-white border-zinc-300 text-black'
+                            : 'bg-zinc-950 border-zinc-800 text-white'
                         }`}
                       >
-                        <div>
-                          <div className="relative aspect-square rounded overflow-hidden bg-black mb-2">
-                            <img
-                              src={photo.imageUrl}
-                              alt={photo.authorName}
-                              className="w-full h-full object-cover"
-                            />
-                            <span
-                              className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[9px] font-mono uppercase font-bold ${
-                                photo.status === 'approved'
-                                  ? 'bg-emerald-500 text-black'
-                                  : photo.status === 'pending'
-                                  ? 'bg-amber-500 text-black'
-                                  : 'bg-red-500 text-white'
-                              }`}
-                            >
-                              {photo.status === 'approved'
-                                ? 'Público no Site'
-                                : photo.status === 'pending'
-                                ? 'Pendente'
-                                : 'Rejeitada'}
-                            </span>
-                          </div>
+                        <option value="all">Todos os Pedidos</option>
+                        <option value="recebido">Recebido</option>
+                        <option value="em_preparacao">Em Preparação</option>
+                        <option value="pronto_para_entrega">Pronto para Entrega</option>
+                        <option value="cancelado">Cancelado</option>
+                      </select>
+                    </div>
 
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-street font-bold uppercase">{photo.authorName}</span>
-                            <span className="text-[10px] font-mono text-zinc-400">{photo.authorHandle}</span>
-                          </div>
+                    {/* Payment Status */}
+                    <div>
+                      <span className="text-[10px] text-zinc-500 uppercase block mb-1">Estado do Pagamento:</span>
+                      <select
+                        value={paymentStatusFilter}
+                        onChange={(e) => setPaymentStatusFilter(e.target.value as any)}
+                        className={`w-full px-2 py-1.5 text-xs rounded border focus:outline-none ${
+                          isWhite
+                            ? 'bg-white border-zinc-300 text-black'
+                            : 'bg-zinc-950 border-zinc-800 text-white'
+                        }`}
+                      >
+                        <option value="all">Todos os Pagamentos</option>
+                        <option value="por_confirmar">Por Confirmar</option>
+                        <option value="parcialmente_pago">Parcialmente Pago</option>
+                        <option value="pago">Pago</option>
+                        <option value="nao_pago">Não Pago</option>
+                      </select>
+                    </div>
 
-                          <p className="text-[11px] font-mono text-zinc-400 mt-1 line-clamp-1">
-                            {photo.tshirtModel}
-                          </p>
-
-                          {photo.caption && (
-                            <p className="text-xs text-zinc-300 italic mt-1">&quot;{photo.caption}&quot;</p>
-                          )}
-                        </div>
-
-                        <div className="mt-3 pt-2 border-t border-zinc-800/40 flex flex-wrap items-center gap-1.5">
-                          {photo.status !== 'approved' && (
-                            <button
-                              type="button"
-                              onClick={() => handleApprovePhoto(photo.id)}
-                              className="flex-1 py-1 px-2 text-xs font-mono uppercase font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded cursor-pointer text-center"
-                            >
-                              Aprovar
-                            </button>
-                          )}
-
-                          {photo.status !== 'rejected' && (
-                            <button
-                              type="button"
-                              onClick={() => handleRejectPhoto(photo.id)}
-                              className="py-1 px-2 text-xs font-mono uppercase border border-amber-600/50 text-amber-400 hover:bg-amber-950/40 rounded cursor-pointer"
-                            >
-                              Rejeitar
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDeleteConfirmation({
-                                type: 'photo',
-                                id: photo.id,
-                                title: `Fotografia de ${photo.authorName}`,
-                                subtitle: `Modelo: ${photo.tshirtModel} • Data: ${photo.date}`,
-                              })
-                            }
-                            className="py-1 px-2.5 text-xs font-mono text-red-400 hover:bg-red-500/10 rounded border border-red-500/20 cursor-pointer ml-auto flex items-center gap-1"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Eliminar</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                    {/* Delivery Status */}
+                    <div>
+                      <span className="text-[10px] text-zinc-500 uppercase block mb-1">Estado da Entrega:</span>
+                      <select
+                        value={deliveryStatusFilter}
+                        onChange={(e) => setDeliveryStatusFilter(e.target.value as any)}
+                        className={`w-full px-2 py-1.5 text-xs rounded border focus:outline-none ${
+                          isWhite
+                            ? 'bg-white border-zinc-300 text-black'
+                            : 'bg-zinc-950 border-zinc-800 text-white'
+                        }`}
+                      >
+                        <option value="all">Todas as Entregas</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="em_distribuicao">Em Distribuição</option>
+                        <option value="entregue_e_confirmada">Entregue e Confirmada</option>
+                        <option value="falha_na_entrega">Falha na Entrega</option>
+                        <option value="cancelada">Cancelada</option>
+                      </select>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 7: GERIR PEDIDOS DE PERSONALIZAÇÃO */}
-            {activeTab === 'orders' && (
-              <div className="space-y-6">
-                <div className="pb-4 border-b border-zinc-800/50">
-                  <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider flex items-center gap-2">
-                    <span>Pedidos de Encomenda Personalizada</span>
-                    <span className="text-xs font-mono text-zinc-500">({customOrders.length} total)</span>
-                  </h3>
-                  <p className="text-xs font-mono text-zinc-500">
-                    Histórico de encomendas submetidas através do formulário de pedidos personalizados.
-                  </p>
                 </div>
 
-                {customOrders.length === 0 ? (
-                  <div className="p-8 text-center text-xs font-mono text-zinc-500 border border-dashed rounded-lg">
-                    Ainda não existem pedidos de personalização registados.
+                {/* Orders List */}
+                {filteredOrders.length === 0 ? (
+                  <div className="p-12 text-center text-xs font-mono text-zinc-500 border border-dashed rounded-xl space-y-2">
+                    <p className="font-bold text-zinc-400">
+                      {customOrders.length === 0
+                        ? 'Ainda não existem encomendas registadas no sistema.'
+                        : 'Nenhuma encomenda encontrada com os critérios de filtro selecionados.'}
+                    </p>
+                    <p className="text-[11px] text-zinc-600 max-w-md mx-auto">
+                      Os novos pedidos submetidos pelos clientes através do formulário de personalização aparecerão aqui em tempo real.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {customOrders.map((order) => (
-                      <div
-                        key={order.id}
-                        className={`p-4 sm:p-5 rounded-lg border ${
-                          isWhite ? 'bg-white border-zinc-200' : 'bg-zinc-900/60 border-zinc-800'
-                        }`}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                          <div>
-                            <span className="font-street text-lg font-bold uppercase">
-                              {order.clientName}
-                            </span>
-                            <span className="text-xs font-mono text-zinc-400 ml-3">
-                              Tel/WA: {order.phone}
-                            </span>
+                    {filteredOrders.map((order) => {
+                      const cleanName = (order.clientName || '').toLowerCase().trim();
+                      const hasSimilarNames = (nameOccurrences.get(cleanName) || 0) > 1;
+
+                      const currentOrderStatus = order.orderStatus || 'recebido';
+                      const currentPaymentStatus = order.paymentStatus || 'por_confirmar';
+                      const currentDeliveryStatus = order.deliveryStatus || 'pendente';
+
+                      return (
+                        <div
+                          key={order.id}
+                          className={`p-4 sm:p-5 rounded-xl border space-y-4 transition-all ${
+                            isWhite
+                              ? 'bg-white border-zinc-200 shadow-sm'
+                              : 'bg-zinc-900/60 border-zinc-800'
+                          }`}
+                        >
+                          {/* Order Card Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800/60">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-street text-lg font-bold uppercase text-white">
+                                  {order.orderNumber || order.id}
+                                </span>
+                                <span className="text-[10px] font-mono text-zinc-400">
+                                  Data: {order.date} {order.createdAt ? `• ${new Date(order.createdAt).toLocaleTimeString('pt-PT')}` : ''}
+                                </span>
+                                {hasSimilarNames && (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold flex items-center gap-1">
+                                    <Users className="w-3 h-3" />
+                                    <span>Clientes com nomes semelhantes</span>
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 text-xs font-mono text-zinc-400">
+                                <span className="font-bold text-white">{order.clientName}</span>
+                                <span>&bull;</span>
+                                <span>{order.phone}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* Direct WhatsApp link */}
+                              <a
+                                href={getGeneralWhatsAppUrl(`Olá ${order.clientName}! Contactamos da CF relativamente à sua encomenda ${order.orderNumber || order.id}.`)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1.5 rounded text-xs font-mono uppercase bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+                                title="Falar com o cliente no WhatsApp"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>WhatsApp Cliente</span>
+                              </a>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDeleteConfirmation({
+                                    id: order.id,
+                                    title: `Pedido de ${order.clientName}`,
+                                    subtitle: `Nº ${order.orderNumber || order.id} • Modelo: ${order.model} • Total: ${formatPrice(order.totalPriceKz)}`,
+                                  })
+                                }
+                                className="p-1.5 text-zinc-500 hover:text-red-400 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
+                                title="Eliminar este pedido"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-mono text-zinc-500">{order.date}</span>
-                            <select
-                              value={order.status}
-                              onChange={(e) => handleOrderStatusChange(order.id, e.target.value as any)}
-                              className={`px-2 py-1 text-xs font-mono uppercase rounded border focus:outline-none ${
-                                order.status === 'novo'
-                                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
-                                  : order.status === 'em_producao'
-                                  ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
-                                  : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                          {/* Order Details & Delivery Code Section */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+                            {/* Col 1: Product Specifications */}
+                            <div className="space-y-1 text-zinc-400">
+                              <span className="text-[10px] text-zinc-500 uppercase block font-bold">Artigo Encomendado:</span>
+                              <div className="text-white font-medium">
+                                {order.quantity}x {order.model} ({order.size})
+                              </div>
+                              <div>Cor: {order.color === 'white' ? 'Branco' : 'Preto'} • Local: {order.placement}</div>
+                              {order.phrase && (
+                                <div className="text-zinc-300 italic">
+                                  Frase: &quot;{order.phrase}&quot;
+                                </div>
+                              )}
+                              {order.notes && (
+                                <div className="text-zinc-500 text-[11px]">
+                                  Obs: {order.notes}
+                                </div>
+                              )}
+                              <div className="pt-1 text-emerald-400 font-bold">
+                                Valor Total: {formatPrice(order.totalPriceKz)}
+                              </div>
+                            </div>
+
+                            {/* Col 2: Confirmation Delivery Code (Authorized view) */}
+                            <div
+                              className={`p-3 rounded-xl border flex flex-col justify-between ${
+                                isWhite
+                                  ? 'bg-zinc-100 border-zinc-300 text-zinc-900'
+                                  : 'bg-black/50 border-zinc-800 text-white'
                               }`}
                             >
-                              <option value="novo">Novo</option>
-                              <option value="em_producao">Em Produção</option>
-                              <option value="concluido">Concluído</option>
-                              <option value="cancelado">Cancelado</option>
-                            </select>
+                              <div>
+                                <span className="text-[10px] font-mono uppercase text-zinc-500 block mb-1 font-bold">
+                                  Código de Confirmação de Entrega:
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-2xl font-black tracking-widest text-emerald-400">
+                                    {order.deliveryCode || 'N/D'}
+                                  </span>
+                                  {order.deliveryCode && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyCode(order.id, order.deliveryCode!)}
+                                      className="p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                                      title="Copiar código"
+                                    >
+                                      {copiedCodeId === order.id ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-zinc-800 text-[11px] text-zinc-400 space-y-0.5">
+                                <div>
+                                  Estado do Código:{' '}
+                                  <strong
+                                    className={
+                                      order.deliveryCodeConsumed ? 'text-emerald-400' : 'text-amber-400'
+                                    }
+                                  >
+                                    {order.deliveryCodeConsumed ? 'CONSUMIDO' : 'ATIVO (PENDENTE)'}
+                                  </strong>
+                                </div>
+                                {order.deliveryConfirmedAt && (
+                                  <div className="text-[10px] text-zinc-500">
+                                    Validado em: {new Date(order.deliveryConfirmedAt).toLocaleString('pt-PT')}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Col 3: Independent Status Selectors (Section 6) */}
+                            <div className="space-y-2">
+                              {/* Order Status */}
+                              <div>
+                                <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-0.5">
+                                  Estado do Pedido:
+                                </label>
+                                <select
+                                  value={currentOrderStatus}
+                                  onChange={(e) => handleUpdateStatus(order.id, 'orderStatus', e.target.value)}
+                                  className={`w-full px-2.5 py-1.5 text-xs rounded border focus:outline-none ${
+                                    isWhite
+                                      ? 'bg-white border-zinc-300 text-black'
+                                      : 'bg-zinc-950 border-zinc-800 text-white'
+                                  }`}
+                                >
+                                  <option value="recebido">Recebido</option>
+                                  <option value="em_preparacao">Em Preparação</option>
+                                  <option value="pronto_para_entrega">Pronto para Entrega</option>
+                                  <option value="cancelado">Cancelado</option>
+                                </select>
+                              </div>
+
+                              {/* Payment Status */}
+                              <div>
+                                <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-0.5">
+                                  Estado do Pagamento:
+                                </label>
+                                <select
+                                  value={currentPaymentStatus}
+                                  onChange={(e) => handleUpdateStatus(order.id, 'paymentStatus', e.target.value)}
+                                  className={`w-full px-2.5 py-1.5 text-xs rounded border focus:outline-none ${
+                                    isWhite
+                                      ? 'bg-white border-zinc-300 text-black'
+                                      : 'bg-zinc-950 border-zinc-800 text-white'
+                                  }`}
+                                >
+                                  <option value="por_confirmar">Por Confirmar</option>
+                                  <option value="parcialmente_pago">Parcialmente Pago</option>
+                                  <option value="pago">Pago</option>
+                                  <option value="nao_pago">Não Pago</option>
+                                </select>
+                              </div>
+
+                              {/* Delivery Status */}
+                              <div>
+                                <label className="text-[10px] text-zinc-500 uppercase font-bold block mb-0.5">
+                                  Estado da Entrega:
+                                </label>
+                                <select
+                                  value={currentDeliveryStatus}
+                                  onChange={(e) => handleUpdateStatus(order.id, 'deliveryStatus', e.target.value)}
+                                  className={`w-full px-2.5 py-1.5 text-xs rounded border focus:outline-none ${
+                                    isWhite
+                                      ? 'bg-white border-zinc-300 text-black'
+                                      : 'bg-zinc-950 border-zinc-800 text-white'
+                                  }`}
+                                >
+                                  <option value="pendente">Pendente</option>
+                                  <option value="em_distribuicao">Em Distribuição</option>
+                                  <option value="entregue_e_confirmada">Entregue e Confirmada</option>
+                                  <option value="falha_na_entrega">Falha na Entrega</option>
+                                  <option value="cancelada">Cancelada</option>
+                                </select>
+                              </div>
+                            </div>
                           </div>
                         </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono my-3 p-3 rounded bg-zinc-950/50 border border-zinc-800">
-                          <div>
-                            <span className="text-zinc-500 text-[10px] block uppercase">Serviço</span>
-                            <span className="font-bold">
-                              {order.serviceType === 'cf-brand' ? 'T-shirt CF (6.000 Kz)' : 'T-shirt Cliente (4.000 Kz)'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-zinc-500 text-[10px] block uppercase">Modelo & Tamanho</span>
-                            <span className="font-bold">{order.model} ({order.size})</span>
-                          </div>
-                          <div>
-                            <span className="text-zinc-500 text-[10px] block uppercase">Cor</span>
-                            <span className="font-bold">{order.color === 'white' ? 'Branca' : 'Preta'}</span>
-                          </div>
-                          <div>
-                            <span className="text-zinc-500 text-[10px] block uppercase">Total Calculado</span>
-                            <span className="font-bold text-emerald-400 font-street text-sm">
-                              {formatPrice(order.totalPriceKz)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {order.phrase && (
-                          <p className="text-xs font-mono text-zinc-300">
-                            <span className="text-zinc-500">Frase Personalizada:</span> &quot;{order.phrase}&quot; ({order.fontStyle})
-                          </p>
-                        )}
-
-                        {order.graphicDataUrl && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <img
-                              src={order.graphicDataUrl}
-                              alt="Anexo"
-                              className="w-12 h-12 object-cover rounded border border-zinc-700"
-                            />
-                            <span className="text-[11px] font-mono text-zinc-400">
-                              Imagem carregada pelo cliente
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="mt-4 pt-3 border-t border-zinc-800/40 flex items-center justify-between">
-                          <a
-                            href={`https://wa.me/${order.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                              `Olá ${order.clientName}, recebemos o teu pedido de T-shirt personalizada CF! Estamos prontos para avançar.`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded text-xs font-mono uppercase bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>WhatsApp do Cliente</span>
-                          </a>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDeleteConfirmation({
-                                type: 'order',
-                                id: order.id,
-                                title: `Pedido de ${order.clientName}`,
-                                subtitle: `Modelo: ${order.model} • Total: ${formatPrice(order.totalPriceKz)}`,
-                              })
-                            }
-                            className="text-xs font-mono text-red-400 hover:text-red-300 underline cursor-pointer"
-                          >
-                            Eliminar Pedido
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
             )}
 
-            {/* TAB 6: ALTERAR CÓDIGO DE ACESSO */}
+            {/* TAB 2: GESTOR FINANCEIRO */}
+            {activeTab === 'finance' && (
+              <FinancialManager
+                orders={customOrders}
+                onOrdersUpdated={reloadData}
+                showToast={showToast}
+              />
+            )}
+
+            {/* TAB 3: CONFIRMAR ENTREGA (SIMULADOR DO ENTREGADOR) */}
+            {activeTab === 'courier' && (
+              <div className="space-y-6 max-w-2xl">
+                <div className="pb-4 border-b border-zinc-800/50">
+                  <h3 className="font-street text-xl sm:text-2xl font-bold uppercase tracking-wider flex items-center gap-2">
+                    <Truck className="w-6 h-6 text-emerald-400" />
+                    <span>Interface de Confirmação do Entregador</span>
+                  </h3>
+                  <p className="text-xs font-mono text-zinc-500">
+                    O entregador autorizado utiliza esta interface no telemóvel para pesquisar a encomenda e introduzir o código de 6 dígitos facultado pelo cliente na entrega.
+                  </p>
+                </div>
+
+                <div
+                  className={`p-6 rounded-xl border space-y-4 ${
+                    isWhite ? 'bg-white border-zinc-200' : 'bg-zinc-900/60 border-zinc-800'
+                  }`}
+                >
+                  <h4 className="font-street text-base font-bold uppercase tracking-wider">
+                    Como Funciona o Fluxo de Entrega por Código:
+                  </h4>
+                  <ul className="text-xs font-mono text-zinc-400 space-y-2 list-disc list-inside leading-relaxed">
+                    <li>
+                      <strong>1. Código Único e Imprevisível:</strong> Quando o cliente faz o pedido no site, o servidor gera um código de 6 dígitos e apresenta-o na página de confirmação.
+                    </li>
+                    <li>
+                      <strong>2. Chegada ao Local:</strong> O entregador acede à interface &quot;Confirmar Entrega&quot; e localiza o pedido pelo nome ou número da encomenda.
+                    </li>
+                    <li>
+                      <strong>3. Validação do Código:</strong> O cliente fornece o código verbalmente ou por mensagem. O estafeta introduz o código e o servidor valida-o atomicamente.
+                    </li>
+                    <li>
+                      <strong>4. Consumo de Utilização Única:</strong> Após a validação com sucesso, o código fica permanentemente consumido, impedindo reutilização.
+                    </li>
+                    <li>
+                      <strong>5. Separação Financeira:</strong> A confirmação da entrega não altera automaticamente valores recebidos nem assume pagamento.
+                    </li>
+                  </ul>
+
+                  <div className="pt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsCourierModalOpen(true)}
+                      className="px-6 py-3 rounded font-street text-xs font-bold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2 transition-colors cursor-pointer shadow-lg"
+                    >
+                      <Truck className="w-4 h-4" />
+                      <span>Abrir Interface do Entregador Agora</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: CÓDIGO DE ACESSO & SEGURANÇA */}
             {activeTab === 'security' && (
               <div className="max-w-md space-y-6">
                 <div className="pb-4 border-b border-zinc-800/50">
@@ -2037,7 +1111,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 <div className="p-4 rounded-lg bg-zinc-900/40 border border-zinc-800 text-xs font-mono text-zinc-400 leading-relaxed">
                   <p className="font-bold text-white mb-1">Nota de Segurança e Arquitetura:</p>
                   <p>
-                    O código é protegido com cifragem criptográfica SHA-256 no armazenamento do teu navegador.
+                    O código é protegido com cifragem criptográfica SHA-256 no armazenamento do servidor e do navegador.
                     A senha nunca é exibida publicamente nem transferida em texto simples.
                   </p>
                 </div>
@@ -2046,6 +1120,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           </main>
         </div>
       </div>
+
+      {/* Courier Modal instance accessible from Admin */}
+      <CourierDeliveryModal
+        isOpen={isCourierModalOpen}
+        onClose={() => setIsCourierModalOpen(false)}
+        onDeliveryConfirmed={() => {
+          reloadData();
+          showToast('Entrega confirmada pelo estafeta!');
+        }}
+      />
     </div>
   );
 };

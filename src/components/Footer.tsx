@@ -10,6 +10,7 @@ interface FooterProps {
   onOpenSizeGuide: () => void;
   onOpenCustomize: () => void;
   onOpenAdminAuth?: () => void;
+  onOpenCourierDelivery?: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -17,6 +18,7 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenSizeGuide,
   onOpenCustomize,
   onOpenAdminAuth,
+  onOpenCourierDelivery,
 }) => {
   const { isWhite } = useTheme();
   const [activeInfoModal, setActiveInfoModal] = useState<'entregas' | 'trocas' | 'encomendas' | null>(null);
@@ -199,15 +201,7 @@ export const Footer: React.FC<FooterProps> = ({
                   onClick={() => scrollTo('avaliacoes')}
                   className={`transition-colors cursor-pointer ${isWhite ? 'hover:text-black' : 'hover:text-white'}`}
                 >
-                  Avaliações e Críticas
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => scrollTo('comunidade')}
-                  className={`transition-colors cursor-pointer ${isWhite ? 'hover:text-black' : 'hover:text-white'}`}
-                >
-                  Comunidade CF
+                  Avaliações Demonstrativas
                 </button>
               </li>
               <li>
@@ -226,6 +220,18 @@ export const Footer: React.FC<FooterProps> = ({
                   Tabela de Tamanhos
                 </button>
               </li>
+              {onOpenCourierDelivery && (
+                <li>
+                  <button
+                    onClick={onOpenCourierDelivery}
+                    className={`transition-colors cursor-pointer text-emerald-500 font-bold ${
+                      isWhite ? 'hover:text-emerald-700' : 'hover:text-emerald-400'
+                    }`}
+                  >
+                    Confirmar Entrega (Estafeta)
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
 

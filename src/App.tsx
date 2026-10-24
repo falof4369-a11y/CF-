@@ -8,7 +8,6 @@ import { Hero } from './components/Hero';
 import { ColecaoGaleria } from './components/ColecaoGaleria';
 import { PersonalizationSection } from './components/PersonalizationSection';
 import { ReviewsSection } from './components/ReviewsSection';
-import { CommunitySection } from './components/CommunitySection';
 import { AboutSection } from './components/AboutSection';
 import { Footer } from './components/Footer';
 import { ProductDetailModal } from './components/ProductDetailModal';
@@ -18,6 +17,7 @@ import { SizeGuideModal } from './components/SizeGuideModal';
 import { PersonalizationModal } from './components/PersonalizationModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
+import { CourierDeliveryModal } from './components/CourierDeliveryModal';
 import { getDynamicProducts } from './services/db';
 import { isAdminAuthenticated } from './services/adminAuth';
 import { getGeneralWhatsAppUrl } from './config/whatsapp';
@@ -69,6 +69,7 @@ function MainApp() {
   // Admin access modals (triggered via 3 clicks on CF logo)
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isCourierModalOpen, setIsCourierModalOpen] = useState(false);
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -96,6 +97,7 @@ function MainApp() {
         setIsCustomizeModalOpen(false);
         setIsAdminAuthOpen(false);
         setIsAdminPanelOpen(false);
+        setIsCourierModalOpen(false);
         setSelectedProduct(null);
       }
     };
@@ -236,9 +238,6 @@ function MainApp() {
         {/* Visitor Reviews and Ratings (with pre-approval moderation) */}
         <ReviewsSection />
 
-        {/* CF Community Section (Customer Photos wearing CF t-shirts with pre-approval) */}
-        <CommunitySection />
-
         {/* About Class Focus Philosophy */}
         <AboutSection />
       </main>
@@ -249,6 +248,7 @@ function MainApp() {
         onOpenSizeGuide={() => setIsSizeGuideOpen(true)}
         onOpenCustomize={() => setIsCustomizeModalOpen(true)}
         onOpenAdminAuth={handleOpenAdminAuth}
+        onOpenCourierDelivery={() => setIsCourierModalOpen(true)}
       />
 
       {/* 5. Modals and Drawers */}
@@ -305,13 +305,20 @@ function MainApp() {
         onProductsUpdated={loadCustomProducts}
       />
 
-      {/* Floating Official WhatsApp Button */}
+      {/* 7. Courier Delivery Confirmation Modal */}
+      <CourierDeliveryModal
+        isOpen={isCourierModalOpen}
+        onClose={() => setIsCourierModalOpen(false)}
+        onDeliveryConfirmed={() => setToastMessage('Entrega confirmada com sucesso!')}
+      />
+
+      {/* Floating Official WhatsApp Button with Micro-Pulse */}
       <aside aria-label="Contacto WhatsApp" className="fixed bottom-6 left-6 z-40 flex items-center group">
         <a
           href={getGeneralWhatsAppUrl('Olá! Entrei no site da CF e gostaria de obter informações sobre as vossas t-shirts.')}
           target="_blank"
           rel="noopener noreferrer"
-          className={`p-3.5 rounded-full shadow-[0_10px_30px_rgba(0,0,0,0.3)] transition-all duration-300 flex items-center gap-2 hover:scale-105 active:scale-95 ${
+          className={`p-3.5 rounded-full shadow-[0_10px_30px_rgba(0,0,0,0.3)] transition-all duration-300 flex items-center gap-2 hover:scale-105 active:scale-95 cf-whatsapp-ring cf-btn-micro ${
             isWhite
               ? 'bg-white hover:bg-black text-black hover:text-white border border-zinc-300 hover:border-black'
               : 'bg-zinc-950/90 hover:bg-white text-white hover:text-black border border-white/20 hover:border-white shadow-[0_10px_30px_rgba(0,0,0,0.9)]'

@@ -76,8 +76,23 @@ export interface CommunityPhoto {
   consentConfirmed: boolean;
 }
 
+export type FulfillmentStatus = 'pendente' | 'atendido';
+
+export type FinancialStatus =
+  | 'por_pagar'
+  | 'parcialmente_pago'
+  | 'confirmado'
+  | 'diferenca_registada'
+  | 'atendido_por_confirmar';
+
+// Estados rigorosamente separados conforme secção 6
+export type OrderStatus = 'recebido' | 'em_preparacao' | 'pronto_para_entrega' | 'cancelado';
+export type PaymentStatus = 'por_confirmar' | 'parcialmente_pago' | 'pago' | 'nao_pago';
+export type DeliveryStatus = 'pendente' | 'em_distribuicao' | 'entregue_e_confirmada' | 'falha_na_entrega' | 'cancelada';
+
 export interface CustomOrder {
   id: string;
+  orderNumber?: string; // Número legível do pedido: ex. CF-2026-4819
   clientName: string;
   phone: string;
   serviceType: 'cf-brand' | 'client-shirt';
@@ -94,6 +109,28 @@ export interface CustomOrder {
   graphicDataUrl?: string;
   notes?: string;
   date: string;
+  createdAt?: string;
   status: 'novo' | 'em_producao' | 'concluido' | 'cancelado';
+
+  // Sistema de Código de Confirmação de Entrega
+  deliveryCode?: string; // Código de 6 dígitos gerado no servidor
+  deliveryCodeHash?: string; // Hash SHA-256 no armazenamento
+  deliveryCodeConsumed?: boolean; // Utilização única
+  deliveryConfirmedAt?: string;
+  deliveryCourierId?: string; // Identificador da conta do entregador
+  deliveryAttempts?: number; // Controlo de tentativas / proteção contra brute force
+
+  // Estados Independentes (Secção 6)
+  orderStatus?: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  deliveryStatus?: DeliveryStatus;
+
+  // Financial & Fulfillment Tracking
+  fulfillmentStatus?: FulfillmentStatus;
+  financialStatus?: FinancialStatus;
+  amountReceived?: number;
+  differenceReason?: string;
+  fulfillmentDate?: string;
+  financialConfirmedDate?: string;
 }
 

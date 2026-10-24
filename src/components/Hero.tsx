@@ -24,14 +24,37 @@ export const Hero: React.FC<HeroProps> = ({
   ];
 
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFading, setIsFading] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const currentHeroProduct = heroProducts[currentIndex] || PRODUCTS[0];
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % heroProducts.length);
+    setIsFading(true);
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % heroProducts.length);
+      setIsFading(false);
+    }, 180);
   };
 
   const handlePrev = () => {
-    setCurrentIndex((prev) => (prev - 1 + heroProducts.length) % heroProducts.length);
+    setIsFading(true);
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev - 1 + heroProducts.length) % heroProducts.length);
+      setIsFading(false);
+    }, 180);
+  };
+
+  // Subtle Parallax Tilt on Showcase Image (disabled if prefers-reduced-motion)
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    setTilt({ x: x * 8, y: -y * 8 });
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0 });
   };
 
   return (
@@ -101,12 +124,12 @@ export const Hero: React.FC<HeroProps> = ({
               Não é apenas uma t-shirt. É uma forma de expressão. Peças de corte oversized com estampas exclusivas, arte ancestral e acabamentos premium.
             </p>
 
-            {/* Action Buttons */}
+            {/* Action Buttons with Micro-animations */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
               <button
                 type="button"
                 onClick={onExploreCollection}
-                className={`px-8 py-4 font-street text-sm tracking-[0.22em] font-bold uppercase transition-all duration-300 active:scale-95 text-center cursor-pointer ${
+                className={`px-8 py-4 font-street text-sm tracking-[0.22em] font-bold uppercase transition-all duration-300 active:scale-95 text-center cursor-pointer cf-btn-micro ${
                   isWhite
                     ? 'bg-black text-white hover:bg-zinc-800 shadow-[0_4px_20px_rgba(0,0,0,0.2)]'
                     : 'bg-white text-black hover:bg-zinc-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.4)]'
@@ -118,7 +141,7 @@ export const Hero: React.FC<HeroProps> = ({
               <button
                 type="button"
                 onClick={onOpenCustomize}
-                className={`px-8 py-4 bg-transparent font-street text-sm tracking-[0.22em] font-bold uppercase transition-all duration-300 active:scale-95 text-center cursor-pointer flex items-center justify-center gap-2 ${
+                className={`px-8 py-4 bg-transparent font-street text-sm tracking-[0.22em] font-bold uppercase transition-all duration-300 active:scale-95 text-center cursor-pointer flex items-center justify-center gap-2 cf-btn-micro ${
                   isWhite
                     ? 'border border-black/40 text-black hover:border-black hover:bg-black/5'
                     : 'border border-white/50 text-white hover:border-white hover:bg-white/10'
@@ -204,8 +227,8 @@ export const Hero: React.FC<HeroProps> = ({
                   <button
                     onClick={handlePrev}
                     aria-label="Peça anterior"
-                    className={`p-1 transition-colors ${
-                      isWhite ? 'text-zinc-600 hover:text-black' : 'text-zinc-400 hover:text-white'
+                    className={`p-1.5 rounded transition-all cf-btn-micro cursor-pointer ${
+                      isWhite ? 'text-zinc-600 hover:text-black hover:bg-zinc-100' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                     }`}
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
@@ -213,8 +236,8 @@ export const Hero: React.FC<HeroProps> = ({
                   <button
                     onClick={handleNext}
                     aria-label="Próxima peça"
-                    className={`p-1 transition-colors ${
-                      isWhite ? 'text-zinc-600 hover:text-black' : 'text-zinc-400 hover:text-white'
+                    className={`p-1.5 rounded transition-all cf-btn-micro cursor-pointer ${
+                      isWhite ? 'text-zinc-600 hover:text-black hover:bg-zinc-100' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                     }`}
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -222,10 +245,18 @@ export const Hero: React.FC<HeroProps> = ({
                 </div>
               </div>
 
-              {/* Showcase Real T-shirt Photograph */}
-              <div className="w-full flex items-center justify-center relative p-3">
+              {/* Showcase Real T-shirt Photograph with Subtle Parallax Tilt & Fluid Transition */}
+              <div
+                className="w-full flex items-center justify-center relative p-3 [perspective:1000px]"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+              >
                 <div
-                  className={`w-full max-w-[480px] aspect-[4/3] cursor-pointer flex items-center justify-center overflow-hidden rounded-lg transition-all duration-300 group relative ${
+                  style={{
+                    transform: `rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)`,
+                    transition: 'transform 0.25s ease-out',
+                  }}
+                  className={`w-full max-w-[480px] aspect-[4/3] cursor-pointer flex items-center justify-center overflow-hidden rounded-lg transition-all duration-300 group relative cf-card-hover ${
                     isWhite
                       ? 'bg-zinc-100 border border-zinc-200 shadow-xl'
                       : 'bg-zinc-950/60 border border-zinc-800 shadow-2xl'
@@ -236,7 +267,9 @@ export const Hero: React.FC<HeroProps> = ({
                   <img
                     src={currentHeroProduct.image}
                     alt={currentHeroProduct.name}
-                    className="w-full h-full object-contain transition-transform duration-500 ease-out group-hover:scale-105"
+                    className={`w-full h-full object-contain transition-all duration-300 ease-out group-hover:scale-105 ${
+                      isFading ? 'opacity-20 scale-95' : 'opacity-100 scale-100'
+                    }`}
                   />
                   <div className="absolute inset-0 bg-radial from-transparent via-transparent to-black/10 pointer-events-none" />
                 </div>
